@@ -1,5 +1,6 @@
 package com.transaction.service.service;
 
+import com.transaction.service.client.UserServiceClient;
 import com.transaction.service.dto.CompleteTransactionRequest;
 import com.transaction.service.dto.CompleteTransactionResponse;
 import com.transaction.service.dto.InitiateTransactionRequest;
@@ -10,15 +11,21 @@ import com.transaction.service.encryption.HashingService;
 import com.transaction.service.encryption.RSAKeyService;
 import com.transaction.service.entity.Transaction;
 import com.transaction.service.repository.TransactionRepository;
+import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
+import org.springframework.boot.test.mock.mockito.MockBean;
 import org.springframework.test.context.ActiveProfiles;
 
 import java.math.BigDecimal;
+import java.util.HashMap;
+import java.util.Map;
 import java.util.Optional;
 
 import static org.junit.jupiter.api.Assertions.*;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.Mockito.when;
 
 @SpringBootTest
 @ActiveProfiles("test")
@@ -41,6 +48,24 @@ public class TransactionServiceIntegrationTest {
 
     @Autowired
     private EncryptionProcessor encryptionProcessor;
+
+    // ------- Mock User Service ------
+    // Instead of calling real User Service, use a mock
+    @MockBean
+    private UserServiceClient userServiceClient;
+
+    @BeforeEach
+    void setUp() {
+        Map<String, Object> mockResponse = new HashMap<>();
+        mockResponse.put("success", true);
+        mockResponse.put("profileId", 1);
+        mockResponse.put("newBalance", 9500.00);
+        mockResponse.put("operation", "DEBIT");
+        mockResponse.put("message", "Balance updated");
+
+        // Configure mock to return success response
+        when(userServiceClient.updateBalance(any())).thenReturn(mockResponse);
+    }
 
 // ------ TEST 1: Initiate Transaction ------
     @Test
