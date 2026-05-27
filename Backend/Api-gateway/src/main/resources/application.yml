@@ -1,0 +1,54 @@
+spring:
+  application:
+    name: Api-gateway
+
+ # Spring cloud gateway configuration
+  cloud:
+    gateway:
+      discovery:                             # Enable service discovery for routing
+        locator:
+          enabled: true
+          lower-case-service-id: true
+
+      routes:
+        # Route for Auth Service
+        - id: auth-service
+          uri: lb://Auth-service
+          predicates:
+            - Path=/api/auth/**
+          filters:
+            - StripPrefix=1
+
+        # Route for User Service
+        - id: user-service
+          uri: lb://User-service
+          predicates:
+            - Path=/user/**
+          filters:
+            - StripPrefix=0
+
+        # Route for Transaction Service
+        - id: transaction-service
+          uri: lb://Transaction-Service
+          predicates:
+            - Path=/api/transaction/**
+
+# Server Configuration
+server:
+  port: 8080
+
+# Eureka Client Configuration
+eureka:
+  client:
+    service-url:
+      defaultZone: http://localhost:8761/eureka
+    register-with-eureka: true
+    fetch-registry: true
+  instance:
+    prefer-ip-address: true
+
+# Logging (helpful for debugging)
+logging:
+  level:
+    org.springframework.cloud.gateway: TRACE
+    reactor.netty.http.client: DEBUG
