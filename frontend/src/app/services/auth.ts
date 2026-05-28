@@ -51,7 +51,7 @@ export class AuthService {
     console.log('AuthService initialized');
   }
 
-// ------ Method 1: Register ------
+// ------ Method 1: Register User ------
   register(userData: RegisterRequest): Observable<RegisterResponse> {
 
     console.log('Registering user:', userData.email);
@@ -70,6 +70,52 @@ export class AuthService {
         throw error;
       })
     );  
+  }  
+  
+// ------ Method 2: Login user ------  
+  login(email: string, password: string): Observable<LoginResponse> {
+    console.log('Logging in user: ', email);
 
-  }    
+    // Make POST request to backend
+    return this.http.post<LoginResponse>( `${this.apiUrl}/login`,
+      {
+        email: email,
+        password: password
+      }
+    ).pipe(
+      // When response arrives, save token and update status
+      tap(response => {
+        console.log('Login successsful', response);
+
+        // check if response has token (successful login)
+        if (response.token) {
+          // Save token to localStorage (browser's local storage)
+          localStorage.setItem('authToken', response.token);
+          localStorage.setItem('userId', response.userId.toString());
+          localStorage.setItem('email', response.email);
+          localStorage.setItem('upiId', response.upiId);
+
+          // Update Behaviorsubject - notifies all subscribers that user is now logged in
+          this.isLoggedInSubject.next(true);
+
+          // update user info
+          this.userSubject.next({
+            userId: response.userId,
+            email: response.email,
+            upiId: response.upiId
+          });
+        }
+      }),
+
+      catchError(error => {
+        console.error('Login failed', error);
+        throw error;
+      })
+    );
+  }
+
+
+
+
+
 }
