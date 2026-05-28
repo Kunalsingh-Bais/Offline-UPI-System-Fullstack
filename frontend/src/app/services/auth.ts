@@ -114,8 +114,24 @@ export class AuthService {
     );
   }
 
+// ------ Method 3: Logout user ------
+  logout(): void {
+    console.log('Logging out user....');
 
+    // Remove all user data from localStorage
+    localStorage.removeItem('authToken');
+    localStorage.removeItem('userId');
+    localStorage.removeItem('email');
+    localStorage.removeItem('upiId');
 
+    // Notify all subscribers that user logged out
+    this.isLoggedInSubject.next(false);
+
+    // Clear user info
+    this.userSubject.next(null);
+
+    console.log('Logout successful');
+  }
 
 
 }
