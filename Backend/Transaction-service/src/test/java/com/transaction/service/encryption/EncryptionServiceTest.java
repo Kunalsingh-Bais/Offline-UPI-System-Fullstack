@@ -85,7 +85,7 @@ public class EncryptionServiceTest {
         // Different data should produce different hash
         String differentData = "ravi@upi|sam@upi,5000";
         String differentHash = hashingService.generateSHA256Hash(differentData);
-        assertEquals(hash1, differentHash, "Different data should produce different hash");
+        assertNotEquals(hash1, differentHash, "Different data should produce different hash");
    }
 
 // ------ TEST 5: Hash Verification
