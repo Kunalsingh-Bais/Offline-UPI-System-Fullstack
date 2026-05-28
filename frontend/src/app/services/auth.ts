@@ -133,5 +133,10 @@ export class AuthService {
     console.log('Logout successful');
   }
 
-
+// ------ Method 4: Get Token ------
+  // Get JWT token from localStorage or null 
+  getToken(): string | null {
+    // Return token from localStorage, or null if doesn't exist
+    return localStorage.getItem('authToken');
+  }
 }
