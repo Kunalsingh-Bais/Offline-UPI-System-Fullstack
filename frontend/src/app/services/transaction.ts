@@ -113,4 +113,33 @@ export class TransactionService {
       })
     );
   }  
+
+// ------ Method 3: Complete Transaction ------
+  completeTransaction(request: CompleteTransactionRequest): Observable<CompleteTransactionResponse> {
+
+    console.log('Completing transaction: ',request.transactionId);
+
+    // Make POST request to backend
+    return this.http.post<CompleteTransactionResponse>(
+      `${this.apiUrl}/complete`,
+      request                    // Request body with encrypted data
+    ).pipe(
+      tap(response => {
+        if(response.success) {
+          console.log('Transaction completed successfully');
+          console.log('New balances:');
+          console.log('Sender: ', response.senderNewBalance);
+          console.log('Receiver: ', response.receiverNewBalance);
+        }
+        else {
+          console.warn('Transaction completion failed: ', response.message);
+        }
+      }),
+      // Handles error
+      catchError(error => {
+        console.error('Error completing transaction: ', error);
+        return throwError(() => error);
+      })
+    );
+  }  
 }
