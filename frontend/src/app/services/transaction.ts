@@ -91,4 +91,26 @@ export class TransactionService {
         })
       );
   }
+
+// ------ Method 2: Get public key ------
+  getPublicKey(transactionId: string): Observable<PublicKeyResponse> {
+
+    console.log('Getting public key for transaction:', transactionId);
+
+    // Make GET request to backend
+    return this.http.get<PublicKeyResponse>(
+      `${this.apiUrl}/public-key/${transactionId}`
+    ).pipe(
+      tap(response => {
+        if(response.success) {
+          console.log('Public key retrieved successfully');
+        }
+      }),
+
+      catchError(error => {
+        console.error('Error getting public key: ',error);
+        return throwError(() => error);
+      })
+    );
+  }  
 }
