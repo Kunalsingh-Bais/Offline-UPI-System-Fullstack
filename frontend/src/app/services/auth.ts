@@ -139,4 +139,52 @@ export class AuthService {
     // Return token from localStorage, or null if doesn't exist
     return localStorage.getItem('authToken');
   }
+
+// ------ Method 5: Check if Logged In ------
+  isLoggedIn(): boolean {
+    return this.hasToken();
+  }  
+
+// ------ Method 6: Get User Id ------
+  // Get logged-in user's Id
+  getUserId(): number | null {
+    const userId = localStorage.getItem('userId');
+    return userId ? parseInt(userId, 10) : null;
+  }
+
+// ------ Method 7: Get user email ------
+  getUserEmail(): string | null {
+    return localStorage.getItem('email');
+  }  
+
+// ------ Methog 8: Get user UPI Id ------
+  getUserUpiId(): String | null {
+    return localStorage.getItem('upiId');
+  }  
+
+
+// ------ Private Helper methods ------
+ 
+  // Check if token exists in localStorage
+  private hasToken(): boolean{
+    const token = localStorage.getItem('authToken');
+    // return true if token exists and not empty, false otherwise
+    return token !== null && token !== '';
+  }  
+
+  // Get user object from localStorage
+  private getUserFromStorage(): any {
+    const userId = localStorage.getItem('userId');
+    const email = localStorage.getItem('email');
+    const upiId = localStorage.getItem('upiId');
+
+    if (userId && email && upiId) {
+      return {
+        userId: parseInt(userId, 10),
+        email: email,
+        upiId: this.getUserUpiId
+      };
+    }
+    return null;
+  }
 }
