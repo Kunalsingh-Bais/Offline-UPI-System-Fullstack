@@ -18,10 +18,18 @@ interface CreateProfileResponse {
   name: string;
   email: string;
   upiId: string;
-  phone: string;
-  isVerified: boolean;
-  createdAt: string;
-  updatedAt: string;
+  success: boolean;
+  message: string;
+}
+
+// Interface for get profile response
+interface GetProfileResponse {
+  profileId: number;
+  authUserId: number;
+  name: string;
+  email: string;
+  upiId: string;
+  phone?: string;
   success: boolean;
   message: string;
 }
@@ -62,6 +70,9 @@ export class UserService {
           console.log('Profile created successfully');
           console.log('Profile ID:', response.profileId);
         }
+        else {
+          console.warn('Profile creation failed: ', response.message);
+        }
       }),
       // Handle error
       catchError(error => {
@@ -73,18 +84,19 @@ export class UserService {
 
 // ------ Method 2: Get profile ------
   // Get user's profile information
-  getProfile(authUserId: number): Observable<CreateProfileResponse> {
+  getProfile(authUserId: number): Observable<GetProfileResponse> {
 
     console.log('Getting profile for user: ', authUserId);
 
     // Make GET request to backend
-    return this.http.get<CreateProfileResponse>(
+    return this.http.get<GetProfileResponse>(
       `${this.apiUrl}/profile/${authUserId}`  // Full URL with user Id 
     )
     .pipe(
       tap(response => {
         if (response.success) {
           console.log('Profile retrieved successfully');
+          console.log('Name: ', response.name);
         }
       }),
       catchError(error => {
