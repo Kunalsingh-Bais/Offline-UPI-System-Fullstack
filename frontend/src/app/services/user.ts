@@ -71,6 +71,28 @@ export class UserService {
     );
   }
 
+// ------ Method 2: Get profile ------
+  // Get user's profile information
+  getProfile(authUserId: number): Observable<CreateProfileResponse> {
+
+    console.log('Getting profile for user: ', authUserId);
+
+    // Make GET request to backend
+    return this.http.get<CreateProfileResponse>(
+      `${this.apiUrl}/profile/${authUserId}`  // Full URL with user Id 
+    )
+    .pipe(
+      tap(response => {
+        if (response.success) {
+          console.log('Profile retrieved successfully');
+        }
+      }),
+      catchError(error => {
+        console.log('Error getting profile: ', error);
+        return throwError(() => error);
+      })
+    );
+  }   
 
 
 
