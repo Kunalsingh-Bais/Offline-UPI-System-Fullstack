@@ -65,7 +65,7 @@ export class UserService {
       }),
       // Handle error
       catchError(error => {
-        console.log('Error creating profile: ',error);
+        console.error('Error creating profile: ',error);
         return throwError(() => error);
       })
     );
@@ -88,14 +88,35 @@ export class UserService {
         }
       }),
       catchError(error => {
-        console.log('Error getting profile: ', error);
+        console.error('Error getting profile: ', error);
         return throwError(() => error);
       })
     );
   }   
 
+// ------ Method 3: Get Wallet Balance ------  
+  // Get user's wallet balance
+  getBalance(profileId: number): Observable<GetBalanceResponse> {
 
+    console.log('Getting wallet balance for profile: ', profileId);
 
+    // Make GET request to backend
+    return this.http.get<GetBalanceResponse> (
+      `${this.apiUrl}/wallet/balance/${profileId}` //Full URL with profile Id
+    )
+    .pipe(
+      tap(response => {
+        if(response.success) {
+          console.log('Balance retrieved: ', response.balance);
+        }
+      }),
+
+      catchError(error => {
+        console.error('Error getting balance: ', error);
+        return throwError(() => error);
+      })
+    );
+  }
 }
 
 
