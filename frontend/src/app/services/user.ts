@@ -129,6 +129,24 @@ export class UserService {
       })
     );
   }
+
+// ------ Helper Method 1: Save Profile to Localstorage ------
+  saveProfileToStorage(response: CreateProfileResponse): void {
+    try {
+      localStorage.setItem('profileId', response.profileId.toString());
+      localStorage.setItem('authUserId', response.authUserId.toString());
+      localStorage.setItem('userName', response.name);
+      localStorage.setItem('profileUpiId', response.upiId);
+
+      console.log('Profile saved to localStorage');
+      console.log('Profile ID: ', response.profileId);
+      console.log('User name: ', response.name);
+      console.log('Upi ID: ', response.upiId);
+    }
+    catch(error) {
+      console.error('Error saving to localStorage: ', error);
+    }
+  }   
 }
 
 
