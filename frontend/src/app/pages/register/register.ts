@@ -48,7 +48,7 @@ export class RegisterComponent implements OnInit{
       phone: ['',[Validators.required,Validators.pattern(/^[6-9]\d{9}$/)]],
 
       // Upi id (required, pattern: xxx@upi)
-      UpiId: ['',[Validators.required,Validators.pattern(/^[a-zA-Z0-9._-]+@upi$/)]]
+      upiId: ['',[Validators.required,Validators.pattern(/^[a-zA-Z0-9._-]+@upi$/)]]
     });
 
     console.log('Registration form initialized');
@@ -64,7 +64,7 @@ export class RegisterComponent implements OnInit{
 
 // ------ Method 3: Handle registration submission ------
   // Calls when user clicks Register button
-  onregister(): void {
+  onRegister(): void {
     // Mark as submitted
     this.submitted = true;
     console.log('Registration form submitted');

@@ -1,1 +1,226 @@
-<p>register works!</p>
+<div class="min-h-screen flex flex-col items-center justify-center bg-gray-50 py-12 px-4 sm:px-6 lg:px-8">
+
+  <!-- Card wrapper -->
+  <div class="w-full max-w-lg">
+
+    <!-- Card content -->
+    <div class="bg-white rounded-lg shadow-lg p-8">
+
+      <!------ Header ------>
+      <div class="text-center mb-8">
+        <h1 class="text-3xl font-bold text-gray-900 mb-2">
+          Create Account
+        </h1>      
+        <p class="text-gray-600 text-sm">
+          Join UPI payment system
+        </p> 
+      </div>
+
+      <!------ Registration Steps ------>
+      <div class="mb-6">
+        <div class="flex justify-center items-center space-x-4 text-xs">
+
+          <!-- Step 1: Auth -->
+          <div class="flex flex-col items-center">
+            <div class="w-8 h-8 rounded-full flex items-center  
+                        justify-center"
+                 [ngClass]="registrationStep >=1 ? 'bg-green-500 text-white' : 'bg-gray-200 text-gray-600'">
+              <span *ngIf="registrationStep >= 1">✓</span>
+              <span *ngIf="registrationStep <1">1</span>
+            </div>
+            <p class="mt-1 text-gray-600">Auth</p>
+          </div> 
+
+          <!-- Arrow -->
+          <div class="text-gray-400">→</div> 
+
+          <!-- Step 2: Profile -->
+          <div class="flex flex-col items-center">
+            <div class="w-8 h-8 rounded-full flex items-center  
+                          justify-center"
+                 [ngClass]="registrationStep >= 2? 'bg-green-500 text-white' : 'bg-gray-200 text-gray-600'">
+              <span *ngIf="registrationStep >= 2">✓</span>  
+              <span *ngIf="registrationStep < 2">2</span>
+            </div>
+              <p class="mt-1 text-gray-600">Profile</p>
+          </div> 
+
+          <!-- Arrow -->
+          <div class="text-gray-400">→</div>
+
+          <!-- Step 3: Complete -->
+          <div class="flex flex-col items-center">
+            <div class="w-8 h-8 rounded-full flex items-center  
+                          justify-center"
+                 [ngClass]="registrationStep >= 3? 'bg-green-500 text-white' : 'bg-gray-200 text-gray-600'">
+              <span *ngIf="registrationStep >= 3">✓</span>  
+              <span *ngIf="registrationStep < 3">3</span>
+            </div>
+              <p class="mt-1 text-gray-600">Done</p>
+          </div> 
+        </div>
+      </div>
+
+        <!------ Error Alert ------>
+      <div *ngIf="errorMessage" class="mb-4 bg-red-50 border-l-4 border-red-500 text-red-700 p-4 rounded">
+
+        <div class="flex items-center">
+          <span class="text-xl mr-3">❌</span>
+          <p class="text-sm">{{ errorMessage }}</p>
+        </div> 
+        
+        <button (click)="clearError()" 
+          class="float-right text-red-500 hover:text-red-700 font-bold">
+          x
+        </button>
+      </div>
+
+      <!------ Success Alert ------>
+      <div *ngIf="successMessage" class="mb-4 bg-green-50 border-l-4 border-green-500 text-green-700 p-4 rounded">
+        
+        <div class="flex items-center">
+          <span class="text-xl mr-3">✅</span>  
+          <p class="text-sm"> {{ successMessage }}</p>
+        </div>
+      </div>
+
+      <!------ Registration form ------>
+      <form [formGroup]="registerForm" (ngSubmit)="onRegister()"   
+            class="space-y-4">
+        
+        <!-- Row 1: Name & Email -->
+        <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+          
+          <!-- Name -->  
+          <div>
+            <label class="block text-sm font-medium text-gray-700 mb-2">
+              Full Name  
+            </label>
+            <input type="text" placeholder="name" formControlName="name"   
+                   class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 text-sm"
+            [ngClass]="{'border-red-500': submitted && f['name'].errors}">
+
+            <div *ngIf="submitted && f['name'].errors" class="text-red-600 text-xs mt-1">
+              <p *ngIf="f['name'].errors['required']">❌ Name required</p>  
+              <p *ngIf="f['name'].errors['minlength']">❌ Min 2 characters</p>
+            </div>
+          </div>
+
+          <!-- Email -->
+          <div>
+            <label class="block text-sm font-medium text-gray-700 mb-2">
+               Email
+            </label>
+            <input type="email" placeholder="john@example.com" formControlName="email" class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 text-sm"
+            [ngClass]="{'border-red-500': submitted && f['email'].errors}">
+
+            <div *ngIf="submitted && f['email'].errors" class="text-red-600 text-xs mt-1">
+                <p *ngIf="f['email'].errors['required']">❌ Email required</p>
+                <p *ngIf="f['email'].errors['email']">❌ Invalid email</p>
+            </div>
+          </div> 
+        </div>
+
+        <!-- Row 2: Password & Confirm -->
+        <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+
+          <!-- Password -->
+          <div>
+            <label class="block text-sm font-medium text-gray-700 mb-2">
+              Password 
+            </label>
+            <input type="password" placeholder="Min 6 characters" formControlName="password" class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 text-sm"
+            [ngClass]="{'border-red-500': submitted && f['password'].errors}">
+
+            <div *ngIf="submitted && f['password'].errors" class="text-red-600 text-xs mt-1">
+              <p *ngIf="f['password'].errors['required']">❌ Required</p> 
+              <p *ngIf="f['password'].errors['minlength']">❌ Min 6 chars</p>
+            </div>
+          </div>
+          
+          <!-- Confirm Password -->
+          <div>
+            <label class="block text-sm font-medium text-gray-700 mb-2">
+               Confirm Password 
+            </label>
+            <input type="password" placeholder="Confirm password" formControlName="confirmPassword" class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 text-sm"
+            [ngClass]="{'border-red-500': submitted && f['confirmPassword'].errors}">
+
+            <div *ngIf="submitted && f['confirmPassword'].errors"  
+                 class="text-red-600 text-xs mt-1">
+              <p *ngIf="f['confirmPassword'].errors['required']">❌ Required</p> 
+            </div>
+            <div *ngIf="submitted && !passwordsMatch" class="text-red-600 text-xs mt-1">
+              ❌ Passwords don't match
+            </div>
+          </div>
+        </div>
+
+        <!------ Row 3: Phone & Upi ------>
+        <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+
+          <!-- Phone -->
+          <div>
+            <label class="block text-sm font-medium text-gray-700 mb-2">
+              Phone
+            </label>
+            <input type="text" placeholder="10 digits" formControlName="phone" class="w-full px-4 py-2 border border-gray-300 rounded-lg
+                     focus:ring-2 focus:ring-blue-500 focus:border-blue-500 text-sm"
+            [ngClass]="{'border-red-500': submitted && f['phone'].errors}">
+
+            <div *ngIf="submitted && f['phone'].errors" class="text-red-600 text-xs mt-1">
+              <p *ngIf="f['phone'].errors['required']">❌ Required</p>  
+              <p *ngIf="f['phone'].errors['pattern']">❌ Invalid Indian phone</p>
+            </div>
+          </div> 
+          
+          <!-- UPI ID -->
+          <div>
+            <label class="block text-sm font-medium text-gray-700 mb-2">
+              UPI ID
+            </label>
+            <input 
+              type="text" 
+              placeholder="username@upi"
+              formControlName="upiId"
+              class="w-full px-4 py-2 border border-gray-300 rounded-lg
+                     focus:ring-2 focus:ring-blue-500 focus:border-blue-500 text-sm"
+              [ngClass]="{'border-red-500': submitted && f['upiId'].errors}">
+            
+            <div *ngIf="submitted && f['upiId'].errors" class="text-red-600 text-xs mt-1">
+              <p *ngIf="f['upiId'].errors['required']">❌ Required</p>
+              <p *ngIf="f['upiId'].errors['pattern']">❌ Format: username@upi</p>
+            </div>
+          </div>
+        </div>
+
+        <!------ Submit button ------>
+        <button type="submit" [disabled]="loading" 
+                class="w-full mt-6 bg-blue-600 hover:bg-blue-700 text-white font-semibold py-2 rounded-lg transition disabled:bg-gray-400 disabled:cursor-not-allowed">
+
+          <span *ngIf="!loading">
+            Create Account
+          </span>
+          <span *ngIf="loading" class="flex items-center justify-center">
+            <svg class="animate-spin h-5 w-5 mr-2 text-white"
+                 xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+              <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+              <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+            </svg>
+            Creating...
+          </span>      
+        </button>
+      </form>
+
+      <!------ Login link ------>
+      <p class="text-center text-gray-600 text-sm mt-6">
+        Already have an account?
+        <a routerLink="/login" class="text-blue-600 hover:text-blue-700 font-semibold hover:underline transition">
+          Login here
+        </a>
+      </p>
+    </div>
+  </div>
+</div>
+
+
