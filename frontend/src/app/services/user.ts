@@ -146,7 +146,59 @@ export class UserService {
     catch(error) {
       console.error('Error saving to localStorage: ', error);
     }
-  }   
+  } 
+  
+// ------ Helper Method 2: Get profile ID from Localstorage ------
+  getProfileIdFromStorage(): number | null {
+    try {
+      const profileId = localStorage.getItem('profileId');
+      if (profileId) {
+        return parseInt(profileId, 10);
+      }
+      return null;
+    }
+    catch (error) {
+      console.log('Error reading profileId from localStorage: ', error);
+      return null;
+    }
+  }  
+
+// ------ Helper Method 3: Get user name from Localstorage ------
+  getUserNameFromStorage(): string | null {
+    try {
+      return localStorage.getItem('userName');
+    }
+    catch(error) {
+      console.error('Error reading userName from localStorage: ', error);
+      return null;
+    }
+  }
+
+// ------ Helper Method 4: Get UPI Id from Localstorage ------
+  getUpiIdFromStorage(): string | null {
+    try {
+      return localStorage.getItem('profileUpiId');
+    }
+    catch(error) {
+      console.log('Error reading profileUpiId from localStorage: ', error);
+      return null;
+    }
+  }  
+
+// ------ Helper Method 5: Clear all profile data ------
+  clearProfileData(): void {
+    try {
+      localStorage.removeItem('profileId');
+      localStorage.removeItem('authUserId');
+      localStorage.removeItem('userName');
+      localStorage.removeItem('profileUpiId');
+
+      console.log('Profile data cleared from localStorage');
+    }
+    catch(error) {
+      console.log('Error clearing profile data: ',error);
+    }
+  }  
 }
 
 

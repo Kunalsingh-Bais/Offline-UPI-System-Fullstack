@@ -1,0 +1,35 @@
+[33m83ef24c[m[33m ([m[1;36mHEAD[m[33m -> [m[1;32mmain[m[33m, [m[1;31morigin/main[m[33m)[m Build registration page UI with Tailwind styling and form validation
+[33m9fae458[m Build registration page UI with Tailwind styling and form validation
+[33me7aae52[m Build registration page UI with Tailwind styling and form validation
+[33m57ed466[m Implement user registration component with profile creation workflow
+[33mfffdd20[m Build login page UI with Tailwind css and reactive form validation
+[33m23ee91d[m Create Login page skeleton
+[33mb837744[m Implement login component with reactive form validation and authentication workflow
+[33m00336c1[m Implement JWT authentication interceptor with global error handling
+[33m22fbc13[m Fix UserService profile response typing
+[33m6a1bfff[m Implement wallet balance retrieval functionality
+[33m81223fc[m Implement user profile retrieval functionality
+[33m8d97d53[m Implement user profile creation fuctionality
+[33mb96961a[m Create UserService skeleton
+[33m8958831[m Implement encrypted transaction completion flow
+[33mf4904e9[m Implement RSA public key retrieval for transactions
+[33m9cf3368[m Implement transaction initiation API integration
+[33m7dfeca5[m Create TransactionService skeleton
+[33maed942f[m Add get token service;
+[33m3803e3e[m Implement logout functionality
+[33m896fc98[m Add user login with JWT session handling
+[33m5d05454[m Implement user registration functionality
+[33m8b8aaae[m Create AuthService skeleton
+[33me7443b4[m Add 'frontend/' from commit 'e1b6a867c8b6b9ea5aeb03ec4514a7ddf41babda'
+[33mee20c66[m Add 'Backend/' from commit '4436e1019fe544836bc5133ef4fc2828cc1c5123'
+[33m05e7cbf[m Initial parent repository setup
+[33me1b6a86[m[33m ([m[1;31mfrontend/master[m[33m, [m[1;31mfrontend/HEAD[m[33m)[m Initialized Angular frontend with Tailwind CSS
+[33ma07291e[m initial commit
+[33m4436e10[m[33m ([m[1;31mbackend/main[m[33m, [m[1;31mbackend/HEAD[m[33m)[m Configured H2 test environment and fixed integration tests
+[33maa28e03[m Added integration tests for transaction and encryption service
+[33m5bd4319[m Added validation for transaction request DTO
+[33m0385788[m Added custom exceptions for transaction service
+[33mfe87034[m Implemented Resilience4j circuit breakers for service communication
+[33m4653ee2[m Implemented Resilience4j circuit breakers for service communication
+[33md4a6476[m Add GlobalExceptionHandler for centralized error handling
+[33m93ec2f9[m Initial microservices backend implementation
