@@ -1,0 +1,46 @@
+/* Smooth transitions */
+button {
+    transition: all 0.3s ease;
+}
+
+/* Hover effects */
+button:hover:not(:disabled) {
+    transform: translateY(-2px);
+}
+
+button:disabled {
+    opacity: 0.6;
+    cursor: not-allowed;
+}
+
+/* Mobile menu animation */
+@keyframes fadeIn {
+    from {
+        opacity: 0;
+        transform: translateY(-10px);
+    }
+    to {
+        opacity: 1;
+        transform: translateY(0);
+    }
+}
+
+.animate-fadeIn {
+    animation: fadeIn 0.3s ease;
+}
+
+/* Header shadow on scroll */
+header {
+    transition: box-shadow 0.3s ease;
+}
+
+/* Spinner animation for refresh button */
+@keyframes spin {
+    to {
+        transform: rotate(360deg);
+    }
+}
+
+.animate-spin {
+    animation: spin 1s linear infinite;
+}

@@ -1,1 +1,136 @@
-<p>header works!</p>
+<header class="sticky top-0 z-50 bg-white shadow-md">
+  <div class="max-w-7xl mx-auto px-4 py-4">
+
+    <div class="flex items-center justify-between">
+      <div class="flex items-center space-x-3">
+        <!-- Logo -->
+        <div class="text-3xl">💳</div>
+
+        <!-- Brand name -->
+        <div>
+          <h1 class="text-2xl font-bold text-gray-900">UPI Pay</h1>
+          <p class="text-xs text-gray-500">Offline Payment System</p>  
+        </div>
+      </div>
+
+      <!------ Middle: User Info (Desktop) ------>  
+      <div class="hidden md:flex items-center space-x-6">
+
+        <!-- User name -->
+        <div class="text-right">
+          <p class="text-sm font-semibold text-gray-900">
+            👤 {{ userName || 'User'}}
+          </p>  
+          <p class="text-xs text-gray-600">
+            {{ userUpiId || 'loading...' }}
+          </p>
+        </div>
+
+        <!-- Balance section-->
+        <div class="border-l border-gray-300 pl-6">
+          <p class="text-xs text-gray-600 mb-1">Wallet Balance</p>  
+
+          <!-- Balance with loading state -->
+          <div class="flex items-center space-x-2">
+            <p class="text-lg font-bold text-blue-600">
+              {{ formatCurrency(walletBalance)}}  
+            </p>
+
+            <!-- Refresh button -->
+            <button (click)="refreshBalance()" [disabled]="loadingBalance"
+                class="p-1 hover:bg-gray-100 rounded-full transition"
+                title="Refresh balance">
+                
+              <svg *ngIf="!loadingBalance" class="w-4 h-4 text-gray-600"
+                    fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15">
+                </path>
+              </svg>  
+
+              <svg *ngIf="loadingBalance" class="w-4 h-4 text-gray-600 animate-spin" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+                <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z">
+                </path>
+              </svg>
+            </button>
+          </div>
+        </div>
+      </div>
+
+      <!------ Right Side: Navigation & Logout ------>
+
+      <!-- Desktop Navigation -->
+      <div class="hidden md:flex items-center space-x-4">
+
+        <!-- Dashboard link -->
+        <button (click)="navigateTo('/dashboard')"
+           class="px-4 py-2 text-gray-700 hover:text-blue-600 transition font-medium">
+           Dashboard
+        </button>
+
+        <!-- Payment link -->
+        <button (click)="navigateTo('/payment/initiate')"
+           class="px-4 py-2 text-gray-700 hover:text-blue-600 transition font-medium">
+           Send Money
+        </button>
+
+        <!-- Transaction history link-->
+        <button (click)="navigateTo('/transactions')"
+           class="px-4 py-2 text-gray-700 hover:text-blue-600 transition font-medium">
+           History
+        </button>
+
+        <!-- Logout button -->
+        <button (click)="onLogout()" class="px-4 py-2 bg-red-600 hover:bg-red-700 text-white rounded-lg transition font-medium">
+          Logout
+        </button>
+      </div>
+
+      <!------ Mobile Menu Button --- only shown on mobile ------>
+      <button (click)="toggleMobileMenu()" class="md:hidden p-2 rounded-lg hover:bg-gray-100 transition">
+        
+        <!-- Hamburger icon -->
+        <svg class="w-6 h-6 text-gray-700" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6h16M4 12h16M4 18h16">
+          </path>
+        </svg> 
+      </button>
+    </div>
+  </div>  
+
+  <!------ Mobile Menu (appears below header) ------>
+  <div *ngIf="mobileMenuOpen" class="md:hidden bg-gray-50 border-t border-gray-200 py-2 px-4 space-y-2 animate-fadeIn">
+
+    <!-- User info section (Mobile) -->
+    <div class="py-3 border-b border-gray-200">
+      <p class="text-sm font-semibold text-gray-900">
+        👤 {{userName || 'User'}}
+      </p>
+      <p class="text-xs text-gray-600 mb-2">
+        {{ userUpiId || 'loading...'}}
+      </p>
+      <p class="text-xs text-gray-600">Wallet Balance: </p>
+      <p class="text-lg font-bold text-blue-600">
+        {{ formatCurrency(walletBalance) }}
+      </p>
+    </div>
+
+    <!-- Navigation links -->
+    <button (click)="navigateTo('/dashboard')" class="w-full text-left px-4 py-2 text-gray-700 hover:bg-gray-200 rounded transition">
+      Dashboard
+    </button>
+
+    <button (click)="navigateTo('/payment/initiate')" class="w-full text-left px-4 py-2 text-gray-700 hover:bg-gray-200 rounded transition">
+      Send Money
+    </button>
+
+    <button (click)="navigateTo('/transactions')" class="w-full text-left px-4 py-2 text-gray-700 hover:bg-gray-200 rounded transition">
+      History
+    </button>
+
+    <!-- Logout button (Mobile) -->
+    <button (click)="onLogout()" class="w-full text-left px-4 py-2 bg-red-600 hover:bg-red-700 text-white rounded transition font-medium">
+      Logout
+    </button>
+  </div>
+</header>
