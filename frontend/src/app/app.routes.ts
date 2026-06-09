@@ -3,6 +3,7 @@ import { LoginComponent } from './pages/login/login';
 import { RegisterComponent } from './pages/register/register';
 import { HeaderComponent } from './pages/header/header';
 import { DashboardComponent } from './pages/dashboard/dashboard';
+import { PaymentInitiateComponent } from './pages/payment/payment-initiate/payment-initiate';
 
 export const routes: Routes = [
     {
@@ -23,6 +24,11 @@ export const routes: Routes = [
     {
         path: 'dashboard',
         component: DashboardComponent
+    },
+
+    {
+        path:'payment/initiate',
+        component: PaymentInitiateComponent
     }
 
 ];
