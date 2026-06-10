@@ -2,11 +2,14 @@ import { Component, OnInit } from '@angular/core';
 import { TransactionService } from '../../../services/transaction';
 import { UserService } from '../../../services/user';
 import { Router } from '@angular/router';
+import { CommonModule } from '@angular/common';
+import { FormsModule, ReactiveFormsModule } from '@angular/forms';
+
 
 @Component({
   selector: 'app-payment-complete',
   standalone: true,
-  imports: [],
+  imports: [CommonModule, ReactiveFormsModule, FormsModule],
   templateUrl: './payment-complete.html',
   styleUrl: './payment-complete.css',
 })
@@ -98,7 +101,7 @@ export class PaymentCompleteComponent implements OnInit{
     }, 2000);
   }
   
-// ------ Method 4: COnfirm and Complete payment ------
+// ------ Method 4: Confirm and Complete payment ------
   completePayment(): void {
     if(!this.paymentConfirmed) {
       this.errorMessage = 'Please confirm payment';
@@ -175,6 +178,9 @@ export class PaymentCompleteComponent implements OnInit{
   
 // ------ Method 7: Format currency ------
   formatCurrency(amount: number): string {
+    if (amount === null || amount === undefined) {
+      return '₹0.00';
+    }
     return '₹' +amount.toLocaleString('en-IN', {
       minimumFractionDigits: 2,
       maximumFractionDigits: 2

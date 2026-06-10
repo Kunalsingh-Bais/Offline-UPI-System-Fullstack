@@ -1,1 +1,155 @@
-<p>payment-complete works!</p>
+<div class="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-100 py-8 px-4">
+  <div class="max-w-2xl mx-auto">
+
+    <!------ Header ------>
+    <div class="text-center mb-8">
+      <h1 class="text-4xl font-bold text-gray-900 mb-2">
+        💳 Confirm Payment
+      </h1>
+      <p class="text-gray-600">Review and securely complete your transaction</p>  
+    </div>
+
+    <!-- Error Message -->
+    <div *ngIf="errorMessage && currentStep !== 5" class="mb-6 bg-red-50 border-l-4 border-red-500 text-red-700 p-4 rounded-lg">
+      <p> ❌{{errorMessage}}</p>  
+    </div>
+
+    <!------ Step 1: Review transaction ------>
+    <div *ngIf="currentStep >= 1" class="bg-white rounded-2xl shadow-lg p-8 mb-6">
+      <h2 class="text-xl font-bold text-gray-900 mb-6">Transaction Details</h2>  
+
+      <div class="space-y-4">
+
+        <!-- From -->
+        <div class="flex justify-between items-center pb-4 border-b border-gray-200">
+          <span class="text-gray-600">From</span> 
+          <span class="font-semibold text-gray-900">{{ transactionData?.senderUpiId }}</span> 
+        </div>
+
+        <!-- To -->
+        <div class="flex justify-between items-center pb-4 border-b border-gray-200">
+          <span class="text-gray-600">To</span>
+          <span class="font-semibold text-gray-900">{{ transactionData?.receiverUpiId }}</span>  
+        </div> 
+
+        <!-- Amount -->
+        <div class="flex justify-between items-center pb-4 border-b border-gray-200">
+          <span class="text-gray-600">Amount</span>
+          <span class="text-2xl font-bold text-blue-600"> {{ formatCurrency(transactionData?.amount)}} </span>  
+        </div>
+        
+        <!-- Transaction ID -->
+        <div class="flex justify-between items-center pb-4 border-gray-200">
+          <span class="text-gray-600">Transaction ID</span>
+          <span class="text-xs font-mono text-gray-900">{{ transactionData?.transactionId }}</span>  
+        </div>
+
+        <!-- Expires At -->
+        <div class="flex justify-between items-center">
+          <span class="text-gray-600">Expires At</span>
+          <span class="text-sm text-gray-900"> {{ formatDateTime(transactionData?.expiresAt) }} </span>  
+        </div>
+      </div>
+    </div>
+
+    <!------ Step 2: Encryption status ------>
+    <div *ngIf="currentStep >= 2" class="bg-white rounded-2xl shadow-lg p-8 mb-6">
+      <h2 class="text-xl font-bold text-gray-900 mb-6">🔐 Security Encryption</h2>
+      <div class="space-y-4">
+        <div class="bg-blue-50 border-l-4 border-blue-500 p-4 rounded-lg">
+          <p class="text-sm text-blue-900">
+            Your payment data is encrypted using RSA + AES encryption for maximum security.
+          </p>
+        </div>
+
+        <!-- Encrypt button -->
+        <button *ngIf="!encryptedData" (click)="encryptPaymentData()" [disabled]="encryptingData" class="w-full bg-gradient-to-r 
+          from-blue-500 to-indigo-600 hover:from-blue-600 hover:to-indigo-700 text-white font-semibold py-3 rounded-lg transition disabled:bg-gray-400">
+        
+          <span *ngIf="!encryptingData">🔒 Encrypt Payment Data</span>
+          <span *ngIf="encryptingData" class="flex items-center justify-center">
+            <svg class="animate-spin h-5 w-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+              <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z">
+              </path>
+            </svg> 
+            Encrypting...
+          </span>  
+        </button> 
+
+        <!-- Encrypted data display -->
+        <div *ngIf="encryptedData" class="bg-green-50 border-l-4 border-green-500 p-4 rounded-lg">
+          <p class="text-sm font-semibold text-green-900 mb-2">✅ Data Encrypted</p>
+          <p class="text-xs text-green-800 font-mono break-all">  
+            {{encryptedData}} 
+          </p>
+        </div>
+      </div>
+    </div>
+
+    <!------ Step 3: Confirmation ------>
+    <div *ngIf="currentStep >=3 && currentStep < 5" class="bg-white rounded-2xl shadow-lg p-8 mb-6">
+      <h2 class="text-xl font-bold text-gray-900 mb-6">Confirm Payment</h2>
+      
+      <!-- Confirmation checkBox -->
+      <label class="flex items-center space-x-3 cursor-pointer p-4 border-2 border-gray-200 rounded-lg hover:border-blue-500 transition"
+      [ngClass]="{'border-blue-500 bg-blue-50': paymentConfirmed}">
+      
+        <input type="checkbox" [(ngModel)]="paymentConfirmed" class="w-5 h-5 
+          cursor-pointer">
+        
+        <span class="text-gray-900">I confirm that I want to send
+          <span class="font-bold text-blue-600"> 
+            {{ formatCurrency(transactionData?.amount) }}
+          </span>
+          to 
+          <span class="font-bold text-blue-600">
+            {{ transactionData?.receiverUpiId }}
+          </span>
+        </span>
+      </label>
+
+      <!-- Action button -->
+      <div class="mt-6 flex space-x-4">
+        <button (click)="cancelPayment()" class="flex-1 border border-gray-300 text-gray-700 hover:bg-gray-50 font-semibold py-3 rounded-lg transition">
+         ❌ Cancel
+        </button>
+
+        <button (click)="completePayment()" [disabled]="!paymentConfirmed || loading" class="flex-1 bg-green-600 hover:bg-green-700 text-white 
+          font-semibold py-3 rounded-lg transition disabled:bg-gray-400">
+
+          <span *ngIf="!loading">✅ Complete Payment</span>
+          <span *ngIf="loading">Processing...</span>
+        </button>
+      </div>
+    </div>
+
+    <!------ Step 5: Result ------>
+    <div *ngIf="currentStep === 5" class="bg-white rounded-2xl shadow-lg p-8">
+
+      <!-- Success -->
+      <div *ngIf="successMessage" class="text-center">
+        <div class="text-6xl mb-4">🎉</div>
+        <h2 class="text-2xl font-bold text-green-600 mb-2">Payment SuccessFull</h2>
+        <p class="text-gray-600 mb-2"> {{successMessage}} </p>
+
+        <div class="bg-green-50 border-l-4 border-green-500 p-4 rounded-lg mb-6">
+          <p class="text-sm text-green-900">
+            You will be redirected to dashboard in a few seconds...
+          </p>
+        </div>
+      </div>
+
+      <!-- Failure -->
+      <div *ngIf="errorMessage" class="text-center">
+        <div class="text-6xl mb-4">❌</div>
+        <h2 class="text-2xl font-bold text-red-600 mb-2">Payment Failed</h2>
+        <p class="text-gray-600 mb-6">{{ errorMessage }}</p>
+
+        <button (click)="cancelPayment()" class="bg-blue-600 hover:bg-blue-700 text-white font-semibold px-6 py-3 rounded-lg transition">
+          ← Try Again
+        </button>
+      </div>
+    </div>
+  </div>  
+</div>
