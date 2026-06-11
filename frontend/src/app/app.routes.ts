@@ -5,6 +5,7 @@ import { HeaderComponent } from './pages/header/header';
 import { DashboardComponent } from './pages/dashboard/dashboard';
 import { PaymentInitiateComponent } from './pages/payment/payment-initiate/payment-initiate';
 import { PaymentCompleteComponent } from './pages/payment/payment-complete/payment-complete';
+import { TransactionHistoryComponent } from './pages/transaction-history/transaction-history';
 
 export const routes: Routes = [
     {
@@ -35,6 +36,22 @@ export const routes: Routes = [
     {
         path:'payment/complete',
         component: PaymentCompleteComponent
+    },
+
+    {
+        path:'transactions',
+        component: TransactionHistoryComponent
+    },
+
+    {
+        path: '',
+        redirectTo: '/login',
+        pathMatch: 'full'
+    },
+
+    {
+        path: '**',
+        redirectTo: '/login'
     }
 
 ];
