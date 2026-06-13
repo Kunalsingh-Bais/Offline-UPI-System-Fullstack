@@ -4,6 +4,8 @@ import { UserService } from '../../../services/user';
 import { Router } from '@angular/router';
 import { CommonModule } from '@angular/common';
 import { FormsModule, ReactiveFormsModule } from '@angular/forms';
+import { EncryptionService } from '../../../services/encryption';
+import { timestamp } from 'rxjs';
 
 
 @Component({
@@ -35,7 +37,7 @@ export class PaymentCompleteComponent implements OnInit{
   */
   currentStep = 1;
   
-  constructor(private trasactionServie: TransactionService, private userService: UserService, private router: Router) {}
+  constructor(private trasactionServie: TransactionService, private userService: UserService, private router: Router, private encryptionService: EncryptionService) {}
 
   ngOnInit(): void {
     console.log('PaymentCompleteComponent initialized');
@@ -81,24 +83,49 @@ export class PaymentCompleteComponent implements OnInit{
 
 // ------ Method 3: Encrypt payment data ------
   // Encrypt payment data before sending to server
-  encryptPaymentData(): void {
+  async encryptPaymentData(): Promise<void> {
     console.log('Encrypting payment data...');
+
+    if(!this.transactionData) {
+      this.errorMessage = 'Transaction data not loading';
+      return;
+    }
+
+    if(!this.transactionData.publicKey) {
+      this.errorMessage = 'Public key not found';
+      return;
+    }
 
     this.encryptingData = true;
     this.errorMessage = '';
 
-    // TODO: Call EncryptionService
+    try {
+      // Step 1: Prepare payment data object
+      const paymentData = {
+        senderUpiId: this.transactionData.senderUpiId,
+        receiverUpiId: this.transactionData.receiverUpiId,
+        amount: this.transactionData.amount,
+        transactionId: this.transactionData.transactionId,
+        timestamp: new Date().toISOString()
+      };
 
-    // For now, using placeholder
-    setTimeout(() => {
-      // Mock encrypted data
-      this.encryptedData = 'RSA_ENCRYPTED_KEY.AES_ENCRYPTED_DATA,SHA256_HASH';
+      console.log('Payment data prepared: ',paymentData);
+
+      // Step 2: Call EncryptionService to encrypt
+      this.encryptedData = await this.encryptionService.encryptPayment(this.transactionData.publicKey, paymentData);
+
+      console.log('Payment encrypted successfully');
+      console.log('Encrypted string ready to send');
+      console.log('Length: ', this.encryptedData.length, 'characters');
 
       this.encryptingData = false;
-      this.currentStep = 3;
-
-      console.log('Payment data encrypted');
-    }, 2000);
+      this.currentStep = 3;    // Move to confirmation step
+    }
+    catch (error) {
+      console.log('Encryption failed: ', error);
+      this.encryptingData = false;
+      this.errorMessage = 'Failed to encrypt payment data. Please try again.';
+    }
   }
   
 // ------ Method 4: Confirm and Complete payment ------
