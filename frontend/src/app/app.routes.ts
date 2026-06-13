@@ -6,8 +6,11 @@ import { DashboardComponent } from './pages/dashboard/dashboard';
 import { PaymentInitiateComponent } from './pages/payment/payment-initiate/payment-initiate';
 import { PaymentCompleteComponent } from './pages/payment/payment-complete/payment-complete';
 import { TransactionHistoryComponent } from './pages/transaction-history/transaction-history';
+import { authGuard } from './guards/auth-guard';
 
 export const routes: Routes = [
+  
+  // ===== Public routes =====
     {
         path: 'login',
         component: LoginComponent
@@ -18,31 +21,39 @@ export const routes: Routes = [
         component: RegisterComponent
     },
 
+  // ===== Protected routes (with AuthGuard) =====
+
     {
         path: 'header',
-        component: HeaderComponent
+        component: HeaderComponent,
+        canActivate: [authGuard]
     },
 
     {
         path: 'dashboard',
-        component: DashboardComponent
+        component: DashboardComponent,
+        canActivate: [authGuard]
     },
 
     {
         path:'payment/initiate',
-        component: PaymentInitiateComponent
+        component: PaymentInitiateComponent,
+        canActivate: [authGuard]
     },
 
     {
         path:'payment/complete',
-        component: PaymentCompleteComponent
+        component: PaymentCompleteComponent,
+        canActivate: [authGuard]
     },
 
     {
         path:'transactions',
-        component: TransactionHistoryComponent
+        component: TransactionHistoryComponent,
+        canActivate: [authGuard]
     },
 
+  // ===== Redirects ===== 
     {
         path: '',
         redirectTo: '/login',
@@ -53,5 +64,4 @@ export const routes: Routes = [
         path: '**',
         redirectTo: '/login'
     }
-
 ];
