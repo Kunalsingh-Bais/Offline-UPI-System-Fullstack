@@ -9,7 +9,6 @@ import org.springframework.web.bind.annotation.*;
 
 @RestController
 @RequestMapping("/auth")
-@CrossOrigin(origins = "*")
 public class AuthController {
 
     @Autowired
@@ -18,9 +17,13 @@ public class AuthController {
     @PostMapping("/register")
     public ResponseEntity<RegisterResponse> register(@RequestBody RegisterRequest request){
         // Call service to register
+
+        System.out.println("====== Register Endpoint hit ======");
+        System.out.println("Email: "+ request.getEmail());
         try{
             RegisterResponse response = authService.register(request);
 
+            System.out.println("==== Register success ==== ");
             if(response.isSuccess()) {
                 return ResponseEntity.status(HttpStatus.SC_CREATED).body(response);
             }
@@ -29,6 +32,8 @@ public class AuthController {
             }
         }
         catch (Exception e) {
+
+            System.out.println("===== Register exception =====");
             return ResponseEntity.status(HttpStatus.SC_INTERNAL_SERVER_ERROR)
                     .body(new RegisterResponse(null, request.getEmail(), "Error: "+e.getMessage(),false));
         }

@@ -11,7 +11,6 @@ import org.springframework.web.bind.annotation.*;
 
 @RestController
 @RequestMapping("/user/wallet")
-@CrossOrigin(origins = "*")
 public class WalletController {
 
     @Autowired

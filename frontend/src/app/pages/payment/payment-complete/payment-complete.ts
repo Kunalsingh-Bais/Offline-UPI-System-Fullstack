@@ -76,9 +76,10 @@ export class PaymentCompleteComponent implements OnInit{
     if(!this.transactionData) {
       return;
     }
-
-    // TODO: Call EncryptionService when available 
+ 
     console.log('Ready for encryption');
+
+    this.currentStep = 2;
   }  
 
 // ------ Method 3: Encrypt payment data ------
@@ -95,6 +96,11 @@ export class PaymentCompleteComponent implements OnInit{
       this.errorMessage = 'Public key not found';
       return;
     }
+
+    console.log(
+  'Frontend Public Key:',
+  this.transactionData.publicKey.substring(0, 80)
+);
 
     this.encryptingData = true;
     this.errorMessage = '';
@@ -141,6 +147,20 @@ export class PaymentCompleteComponent implements OnInit{
     }
 
     console.log('Completing payment...');
+    console.log('Sending encrypted data to backend');
+
+    // DEBUG: Log what we're sending 
+    console.log("==== Encrypted Data Details ====");
+    console.log('Format: RSA-key,AES-data,hash');
+    console.log('Total length: ',this.encryptedData.length);
+
+    // Split to see parts
+    const parts = this.encryptedData.split(',');
+    console.log('Part 1 (RSA-key) length:', parts[0]?.length);
+    console.log('Part 2 (AES-data) length:', parts[1]?.length);
+    console.log('Part 3 (hash) length:', parts[2]?.length);
+    console.log('First 100 chars:', this.encryptedData.substring(0, 100));
+    console.log('================================');
 
     this.loading = true;
     this.errorMessage = '';

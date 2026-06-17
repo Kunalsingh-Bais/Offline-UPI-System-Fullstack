@@ -49,7 +49,7 @@ interface GetBalanceResponse {
 export class UserService {
   
   // Base URL
-  private apiUrl = 'http://localhost:8080/user';
+  private apiUrl = 'http://localhost:8080/api/user';
 
   constructor(private http: HttpClient) {
     console.log('UserService initialized');

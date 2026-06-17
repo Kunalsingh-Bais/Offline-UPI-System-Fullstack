@@ -5,9 +5,7 @@ import org.springframework.context.annotation.Configuration;
 import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.web.client.RestTemplate;
-import org.springframework.web.cors.CorsConfiguration;
-import org.springframework.web.cors.CorsConfigurationSource;
-import org.springframework.web.cors.UrlBasedCorsConfigurationSource;
+
 
 import java.util.Arrays;
 
@@ -31,7 +29,7 @@ public class AppConfig {
     }
 
     // ------ CORS CONFIGURATION ------
-    @Bean
+    /*@Bean
     public CorsConfigurationSource corsConfigurationSource() {
         CorsConfiguration configuration = new CorsConfiguration();
 
@@ -39,8 +37,7 @@ public class AppConfig {
         configuration.setAllowedOrigins(Arrays.asList(
                 "http://localhost:4200",    // Angular frontend
                 "http://localhost:3000",
-                "http://localhost:8080",    // API gateway
-                "*"                         // Allow all
+                "http://localhost:8080"    // API gateway
         ));
 
         // Allow these HTTP methods
@@ -61,6 +58,6 @@ public class AppConfig {
         source.registerCorsConfiguration("/**",configuration);     // Apply to all endpoints
 
         return source;
-    }
+    }*/
 
 }

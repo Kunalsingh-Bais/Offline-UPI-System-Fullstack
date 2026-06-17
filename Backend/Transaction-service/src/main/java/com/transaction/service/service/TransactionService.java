@@ -102,7 +102,7 @@ public class TransactionService {
             // Check if found
             if(txnOpt.isEmpty()) {
                 return new CompleteTransactionResponse(request.getTransactionId(), "FAILED",null,null,
-                        "Transaction not found",false);
+                        "Transaction not found",false, new java.util.Date().toString());
             }
 
             Transaction txn = txnOpt.get();
@@ -110,7 +110,7 @@ public class TransactionService {
             // Check idempotency (already processed?)
             if("SUCCESS".equals(txn.getStatus())) {
                 return new CompleteTransactionResponse(txn.getTransactionId(), "SUCCESS", null, null,
-                        "Transaction already completed", true);
+                        "Transaction already completed", true, new java.util.Date().toString());
             }
 
             // Check if expired
@@ -119,20 +119,20 @@ public class TransactionService {
                 transactionRepository.save(txn);
 
                 return new CompleteTransactionResponse(txn.getTransactionId(), "FAILED", null,null,
-                        "Transaction expired",false);
+                        "Transaction expired",false, new java.util.Date().toString());
             }
 
             // Validate encrypted data exists
             if(request.getEncryptedData() == null || request.getEncryptedData().isEmpty()) {
                 return new CompleteTransactionResponse(txn.getTransactionId(), "FAILED", null, null,
-                        "Encrypted data is required", false);
+                        "Encrypted data is required", false, new java.util.Date().toString());
             }
 
             // Parse Encrypted Data
             String[] parts = request.getEncryptedData().split(",");
             if (parts.length != 3) {
                 return new CompleteTransactionResponse(txn.getTransactionId(), "FAILED", null, null,
-                        "Invalid encrypted data format", false);
+                        "Invalid encrypted data format", false, new java.util.Date().toString());
             }
 
             String encryptedAESKey = parts[0].trim();
@@ -149,7 +149,7 @@ public class TransactionService {
                 transactionRepository.save(txn);
 
                 return new CompleteTransactionResponse(txn.getTransactionId(), "FAILED", null, null,
-                        "Data verification failed: " + decryptionResult.get("error"), false);
+                        "Data verification failed: " + decryptionResult.get("error"), false, new java.util.Date().toString());
             }
 
             // Extract sender, receiver, amount from decrypted data
@@ -163,7 +163,7 @@ public class TransactionService {
                 transactionRepository.save(txn);
 
                 return new CompleteTransactionResponse(txn.getTransactionId(), "FAILED", null, null,
-                        "Sender/Receiver mismatch", false);
+                        "Sender/Receiver mismatch", false, new java.util.Date().toString());
             }
 
             // Debit Sender Wallet (Call User Service)
@@ -184,7 +184,7 @@ public class TransactionService {
                     transactionRepository.save(txn);
 
                     return new CompleteTransactionResponse(txn.getTransactionId(),"FAILED", null, null,
-                            "Failed to debit sender's wallet", false);
+                            "Failed to debit sender's wallet", false, new java.util.Date().toString());
                 }
             }
             catch (Exception e) {
@@ -192,7 +192,7 @@ public class TransactionService {
                 transactionRepository.save(txn);
 
                 return new CompleteTransactionResponse(txn.getTransactionId(), "FAILED", null, null,
-                        "Error debiting wallet: " + e.getMessage(), false);
+                        "Error debiting wallet: " + e.getMessage(), false, new java.util.Date().toString());
             }
 
             // CREDIT receiver's wallet (Call User Service)
@@ -227,7 +227,7 @@ public class TransactionService {
                     transactionRepository.save(txn);
 
                     return new CompleteTransactionResponse(txn.getTransactionId(), "FAILED", null, null,
-                            "Failed to credit receiver's wallet", false);
+                            "Failed to credit receiver's wallet", false, new java.util.Date().toString());
                 }
             } catch (Exception e) {
                 // ROLLBACK: Reverse the debit
@@ -248,7 +248,7 @@ public class TransactionService {
                 transactionRepository.save(txn);
 
                 return new CompleteTransactionResponse(txn.getTransactionId(), "FAILED", null, null,
-                        "Error crediting wallet: " + e.getMessage(), false);
+                        "Error crediting wallet: " + e.getMessage(), false, new java.util.Date().toString());
             }
 
             // Update status to SUCCESS
@@ -257,11 +257,11 @@ public class TransactionService {
 
             // Return success response
             return new CompleteTransactionResponse(txn.getTransactionId(), "SUCCESS", null, null,
-                    "Transaction completed successfully", true);
+                    "Transaction completed successfully", true, new java.util.Date().toString());
         }
         catch (Exception e) {
             return new CompleteTransactionResponse(request.getTransactionId(), "FAILED", null, null,
-                    "Error: "+e.getMessage(), false);
+                    "Error: "+e.getMessage(), false, new java.util.Date().toString());
         }
     }
 

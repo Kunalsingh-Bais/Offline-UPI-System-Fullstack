@@ -56,7 +56,7 @@ interface PublicKeyResponse {
 export class TransactionService {
 
   // Base url - points to transaction service via API Gateway
-  private apiUrl = 'http://localhost:8080/transaction';
+  private apiUrl = 'http://localhost:8080/api/transaction';
 
   constructor(private http: HttpClient) {
     console.log('TransactionService initialized');

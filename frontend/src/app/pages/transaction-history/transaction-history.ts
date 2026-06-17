@@ -76,8 +76,8 @@ export class TransactionHistoryComponent implements OnInit{
           trasactionId: 'TXN_003',
           senderUpiId: this.userUpiId,
           receiverUpiId: 'charlie@upi',
-          amount: 250,
-          status: 'PENDING',
+          amount: 500,
+          status: 'FAILED',
           description: 'Loan repayment',
           createdAt: new Date(Date.now() -5 * 60 *1000).toLocaleString()
         }

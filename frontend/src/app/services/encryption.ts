@@ -80,7 +80,7 @@ export class EncryptionService {
 
     try {
       // Step 1: Convert payment object to JSON
-      const jsonData = JSON.stringify(paymentData);
+      const jsonData = `${paymentData.senderUpiId}|${paymentData.receiverUpiId}|${paymentData.amount}`;
       console.log('Payment data JSON: ', jsonData);
 
       const dataBytes = new TextEncoder().encode(jsonData);
@@ -202,7 +202,7 @@ export class EncryptionService {
 
       // Step 5: Combine into final string
       console.log('\n Step 5: Combine all parts');
-      const finalEncrypted = `${encryptedAESKey}, ${encryptedData}, ${hash}`;
+      const finalEncrypted = `${encryptedAESKey},${encryptedData},${hash}`;
 
       console.log('✅ Encryption complete!');
       console.log('Final encrypted string ready to send');

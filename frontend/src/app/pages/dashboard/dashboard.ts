@@ -1,13 +1,13 @@
 import { Component, OnInit } from '@angular/core';
 import { UserService } from '../../services/user';
 import { TransactionService } from '../../services/transaction';
-import { Router } from '@angular/router';
+import { Router, RouterModule } from '@angular/router';
 import { CommonModule } from '@angular/common';
 
 @Component({
   selector: 'app-dashboard',
   standalone: true,
-  imports: [CommonModule],
+  imports: [CommonModule, RouterModule],
   templateUrl: './dashboard.html',
   styleUrl: './dashboard.css',
 })
@@ -17,9 +17,9 @@ export class DashboardComponent implements OnInit{
   userName: string | null = null;
   userUpiId: string | null = null;
   userEmail: string | null = null;
-  walletBalance: number | null = null;
+  walletBalance: number = 0;
   profileId: number | null = null;
-  loadingBalance = false;
+  loadingBalance = true;
   loadingTransactions = false;
   recentTransactions: any[] = [];    // last 5 transactions
   errorMessage = '';

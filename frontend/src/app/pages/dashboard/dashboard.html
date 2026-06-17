@@ -35,7 +35,8 @@
           <!-- Balance display -->
           <div class="flex items-center justify-between mb-6">
             <h2 class="text-5xl font-bold text-blue-600">
-              {{ formatCurrency(walletBalance) }}
+              <span *ngIf="!loadingBalance">{{ formatCurrency(walletBalance)}}</span>
+              <span *ngIf="loadingBalance">Loading balance...</span>
             </h2>
 
             <!-- Refresh button -->
@@ -55,10 +56,6 @@
             </button>
           </div> 
 
-          <!-- Loading state -->
-          <div *ngIf="loadingBalance" class="text-gray-600 text-sm">
-            Loading balance...
-          </div>
         </div>
 
         <!------ Quick action button ------>

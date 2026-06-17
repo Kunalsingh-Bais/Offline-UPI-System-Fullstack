@@ -35,3 +35,7 @@ encryption:
     keySize: 2048
   aes:
     algorithm: AES
+
+logging:
+  level:
+    org.springframework.security: DEBUG

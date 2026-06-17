@@ -10,6 +10,29 @@ spring:
           enabled: true
           lower-case-service-id: true
 
+      globalcors:
+        corsConfigurations:
+          '[/**]':
+            allowedOrigins:
+              - "http://localhost:4200"
+              - "http://localhost:3000"
+              - "http://127.0.0.1:4200"
+            allowedMethods:
+              - "GET"
+              - "POST"
+              - "PUT"
+              - "DELETE"
+              - "OPTIONS"
+              - "PATCH"
+              - "HEAD"
+            allowedHeaders: "*"
+            exposedHeaders:
+              - "Authorization"
+              - "Content-type"
+              - "Access-Control-Allow-Origin"
+            allowCredentials: true
+            maxAge: 3600
+
       routes:
         # Route for Auth Service
         - id: auth-service
@@ -23,19 +46,23 @@ spring:
         - id: user-service
           uri: lb://User-service
           predicates:
-            - Path=/user/**
+            - Path=/api/user/**
           filters:
-            - StripPrefix=0
+            - StripPrefix=1
 
         # Route for Transaction Service
         - id: transaction-service
           uri: lb://Transaction-Service
           predicates:
             - Path=/api/transaction/**
+          filters:
+            - StripPrefix=1
 
 # Server Configuration
 server:
   port: 8080
+  servlet:
+    context-path: /
 
 # Eureka Client Configuration
 eureka:
@@ -52,3 +79,5 @@ logging:
   level:
     org.springframework.cloud.gateway: TRACE
     reactor.netty.http.client: DEBUG
+
+

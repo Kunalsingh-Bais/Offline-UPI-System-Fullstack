@@ -16,4 +16,5 @@ public class CompleteTransactionResponse {
     private BigDecimal receiverNewBalance;
     private String message;
     private boolean success;
+    private String timestamp;
 }

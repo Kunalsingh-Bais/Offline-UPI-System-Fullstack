@@ -35,7 +35,7 @@ interface RegisterResponse {
 })
 export class AuthService {
   // Base url - points to Api gateway
-  private apiUrl = 'http://localhost:8080/auth';
+  private apiUrl = 'http://localhost:8080/api/auth';
 
   // Track login status
   private isLoggedInSubject = new BehaviorSubject<boolean>(this.hasToken());
