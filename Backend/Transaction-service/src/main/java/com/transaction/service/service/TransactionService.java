@@ -172,10 +172,15 @@ public class TransactionService {
                 debitRequest.put("profileId", txn.getSenderProfileId());
                 debitRequest.put("amount", txn.getAmount());
                 debitRequest.put("operation", "DEBIT");
-                debitRequest.put("transaction", request.getTransactionId());
+                debitRequest.put("transactionId", request.getTransactionId());
                 debitRequest.put("description", "Sent to " + receiverUpiId);
 
+                System.out.println("Calling User-service for DEBIT...");
+                System.out.println("Debit Request = " + debitRequest);
+
                 Map<String,Object> debitResponse = userServiceClient.updateBalance(debitRequest);
+
+                System.out.println("Debit Response = " + debitResponse);
 
                 // Check if debit successful
                 Boolean debitSuccess = (Boolean) debitResponse.get("success");
@@ -204,7 +209,12 @@ public class TransactionService {
                 creditRequest.put("transactionId", request.getTransactionId());
                 creditRequest.put("description", "Received from " + senderUpiId);
 
+                System.out.println("Calling User-service for CREDIT...");
+                System.out.println("Credit Request = " + creditRequest);
+
                 Map<String, Object> creditResponse = userServiceClient.updateBalance(creditRequest);
+
+                System.out.println("Credit Response = " + creditResponse);
 
                 // Check if credit successful
                 Boolean creditSuccess = (Boolean) creditResponse.get("success");

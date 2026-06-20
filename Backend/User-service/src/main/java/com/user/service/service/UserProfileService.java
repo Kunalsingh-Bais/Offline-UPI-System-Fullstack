@@ -8,6 +8,7 @@ import com.user.service.dto.GetProfileResponse;
 import com.user.service.repository.UserProfileRepository;
 import com.user.service.repository.WalletRepository;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.context.annotation.Profile;
 import org.springframework.stereotype.Service;
 
 import java.math.BigDecimal;
@@ -71,5 +72,9 @@ public class UserProfileService {
         UserProfile profile = profileOpt.get();
         return new GetProfileResponse(profile.getId(),profile.getAuthUserId(),profile.getName(),
                 profile.getEmail(),profile.getUpiId(),profile.getPhone(), true , "Profile found");
+    }
+
+    public UserProfile getProfileByUpiId(String upiId) {
+        return userProfileRepository.findByUpiId(upiId).orElse(null);
     }
 }

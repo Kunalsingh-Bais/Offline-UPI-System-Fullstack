@@ -52,7 +52,7 @@ public class AuthController {
             }
         } catch (Exception e) {
             return ResponseEntity.status(HttpStatus.SC_INTERNAL_SERVER_ERROR)
-                    .body(new LoginResponse(null,null, request.getEmail(), "Error: "+e.getMessage(),false));
+                    .body(new LoginResponse(null,null,request.getName(), request.getEmail(), "Error: "+e.getMessage(),false));
         }
     }
 

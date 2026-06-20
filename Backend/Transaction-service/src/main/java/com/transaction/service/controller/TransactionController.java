@@ -11,7 +11,6 @@ import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
-import java.math.BigDecimal;
 import java.util.HashMap;
 import java.util.Map;
 
@@ -105,67 +104,31 @@ public class TransactionController {
             System.out.println("Transaction ID: " +request.getTransactionId());
             System.out.println("Encrypted data length: " +request.getEncryptedData().length());
 
-            // Decrypt Payment Data
-            Map<String, Object> decryptionResult = encryptionProcessor.decryptAndVerifyPayment(request.getEncryptedData());
-
-            // Check if decryption was successful
-            if(!(boolean) decryptionResult.getOrDefault("hashVerified", false)) {
-                System.out.println("Decryption verification failed");
-
-                CompleteTransactionResponse errorResponse = new CompleteTransactionResponse();
-                errorResponse.setSuccess(false);
-                errorResponse.setMessage((String) decryptionResult.get("error"));
-                errorResponse.setStatus("FAILED");
-                errorResponse.setTransactionId(request.getTransactionId());
-                errorResponse.setTimestamp(new java.util.Date().toString());
-
-                return ResponseEntity.badRequest().body(errorResponse);
+            if (request.getTransactionId() == null || request.getTransactionId().isEmpty()) {
+                return ResponseEntity.badRequest()
+                        .body(new CompleteTransactionResponse(null, "FAILED", null,
+                                null, "transactionId is required", false, new java.util.Date().toString()));
             }
 
-            // Extract decrypted values
-            String senderUpiId = (String) decryptionResult.get("senderUpiId");
-            String receiverUpiId = (String) decryptionResult.get("receiverUpiId");
-            String amountStr = (String) decryptionResult.get("amount");
-            double amount = Double.parseDouble(amountStr);
+            if (request.getEncryptedData() == null || request.getEncryptedData().isEmpty()) {
+                return ResponseEntity.badRequest()
+                        .body(new CompleteTransactionResponse(request.getTransactionId(), "FAILED", null, null,
+                                "encryptedData iss required", false, new java.util.Date().toString()));
+            }
 
-            System.out.println("\n Decryption successful!");
-            System.out.println("Sender: " + senderUpiId);
-            System.out.println("Receiver: " + receiverUpiId);
-            System.out.println("Amount: ₹" + amount);
+            CompleteTransactionResponse response = transactionService.completeTransaction(request);
 
-            // ---- Process Transaction ----
-
-            // TODO: Implement actual transaction logic
-            // For now , using mock values
-            BigDecimal senderNewBalance = BigDecimal.valueOf(4500.00);
-            BigDecimal receiverNewBalance = BigDecimal.valueOf(1200.00);
-
-            // Build Success Response
-            CompleteTransactionResponse successResponse = new CompleteTransactionResponse();
-            successResponse.setSuccess(true);
-            successResponse.setMessage("Transaction completed successfully");
-            successResponse.setStatus("SUCCESS");
-            successResponse.setSenderNewBalance(senderNewBalance);
-            successResponse.setReceiverNewBalance(receiverNewBalance);
-            successResponse.setTransactionId(request.getTransactionId());
-            successResponse.setTimestamp(new java.util.Date().toString());
-
-            System.out.println("==== Transaction Completed ====\n");
-
-            return ResponseEntity.ok(successResponse);
+            if (response.isSuccess()) {
+                return ResponseEntity.ok(response);
+            }
+            else {
+                return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(response);
+            }
         }
         catch (Exception e) {
-            System.out.println(" Error: " + e.getMessage());
-            e.printStackTrace();
-
-            CompleteTransactionResponse errorResponse = new CompleteTransactionResponse();
-            errorResponse.setSuccess(false);
-            errorResponse.setMessage("Transaction failed: " + e.getMessage());
-            errorResponse.setStatus("FAILED");
-            errorResponse.setTransactionId(request.getTransactionId());
-            errorResponse.setTimestamp(new java.util.Date().toString());
-
-            return ResponseEntity.internalServerError().body(errorResponse);
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
+                    .body(new CompleteTransactionResponse(request.getTransactionId(), "FAILED", null, null,
+                            "Error: " + e.getMessage(), false, new java.util.Date().toString()));
         }
     }
 }

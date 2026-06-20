@@ -1,5 +1,6 @@
 package com.user.service.controller;
 
+import com.user.service.Entity.UserProfile;
 import com.user.service.dto.CreateProfileRequest;
 import com.user.service.dto.CreateProfileResponse;
 import com.user.service.dto.GetProfileResponse;
@@ -8,6 +9,8 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
+
+import java.util.Map;
 
 @RestController
 @RequestMapping("/user")
@@ -36,8 +39,8 @@ public class UserProfileController {
         }
     }
 
-    // ------ GET /user/profile/{authUserId} ------
-    @GetMapping("/profile/{authUserId}")
+    // ------ GET /user/profile/auth/{authUserId} ------
+    @GetMapping("profile/auth/{authUserId}")
     public ResponseEntity<GetProfileResponse> getProfile(@PathVariable Integer authUserId) {
         try {
             GetProfileResponse response = userProfileService.getProfile(authUserId);
@@ -53,6 +56,40 @@ public class UserProfileController {
         catch (Exception e) {
             return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
                     .body(new GetProfileResponse(null, authUserId, null, null, null, null, false, "Error: " +e.getMessage()));
+        }
+    }
+
+    @GetMapping("/profile/upi/{upiId}")
+    public ResponseEntity<?> getProfileByUpiId(@PathVariable String upiId) {
+
+        System.out.println("🔄 Searching profile by UPI ID: " + upiId);
+
+        try {
+            // Find profile by UPI ID
+            UserProfile profile = userProfileService.getProfileByUpiId(upiId);
+
+            if (profile == null) {
+                return ResponseEntity.status(404).body(Map.of(
+                        "success", false,
+                        "message", "No user found with UPI ID: " + upiId
+                ));
+            }
+
+            System.out.println("✅ Profile found: " + profile.getName());
+
+            return ResponseEntity.ok(Map.of(
+                    "success", true,
+                    "profileId", profile.getId(),
+                    "name", profile.getName(),
+                    "upiId", profile.getUpiId()
+            ));
+
+        } catch (Exception e) {
+            System.out.println("❌ Error: " + e.getMessage());
+            return ResponseEntity.status(404).body(Map.of(
+                    "success", false,
+                    "message", "No user found with UPI ID: " + upiId
+            ));
         }
     }
 }

@@ -51,26 +51,26 @@ public class AuthService {
         Optional<User> userOpt = userRepository.findByEmail(request.getEmail());
 
         if(userOpt.isEmpty()) {
-            return new LoginResponse(null,null, request.getEmail(),"User not found",false);
+            return new LoginResponse(null,null, request.getName(), request.getEmail(),"User not found",false);
         }
 
         User user = userOpt.get();
 
         // Step 2: Check password matches
         if(!passwordEncoder.matches(request.getPassword(), user.getPassword())) {
-            return new LoginResponse(null,null, request.getEmail(),"Invalid Password",false);
+            return new LoginResponse(null,null, request.getName(), request.getEmail(),"Invalid Password",false);
         }
 
         // Step 3: Check user is active
         if(!user.getIsActive()) {
-            return new LoginResponse(null,null, request.getEmail(),"User account is inactive",false);
+            return new LoginResponse(null,null, request.getName(), request.getEmail(),"User account is inactive",false);
         }
 
         // Step 4: Generate JWT token
         String token = jwtTokenProvider.generateToken(user.getEmail(), user.getId());
 
         // Step 5: Return token
-        return new LoginResponse(token, user.getId(), user.getEmail(), "Login successful",true);
+        return new LoginResponse(token, user.getId(), user.getName(), user.getEmail(), "Login successful",true);
     }
 
     // ------- VALIDATE TOKEN -------

@@ -9,6 +9,8 @@ import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
+import java.math.BigDecimal;
+
 @RestController
 @RequestMapping("/user/wallet")
 public class WalletController {
@@ -56,5 +58,6 @@ public class WalletController {
                             request.getOperation(), request.getTransactionId(),false,"Error: " +e.getMessage()));
         }
     }
+
 
 }
