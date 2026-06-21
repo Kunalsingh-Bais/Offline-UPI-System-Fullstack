@@ -15,10 +15,7 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 
 import java.time.LocalDateTime;
-import java.util.HashMap;
-import java.util.Map;
-import java.util.Optional;
-import java.util.UUID;
+import java.util.*;
 
 @Service
 public class TransactionService {
@@ -273,6 +270,11 @@ public class TransactionService {
             return new CompleteTransactionResponse(request.getTransactionId(), "FAILED", null, null,
                     "Error: "+e.getMessage(), false, new java.util.Date().toString());
         }
+    }
+
+    // ------ Method 3: Transaction history ------
+    public List<Transaction> getTransactionHistory(Integer profileId) {
+        return transactionRepository.findBySenderProfileIdOrReceiverProfileIdOrderByCreatedAtDesc(profileId, profileId);
     }
 
 // ------- Helper Methods -------

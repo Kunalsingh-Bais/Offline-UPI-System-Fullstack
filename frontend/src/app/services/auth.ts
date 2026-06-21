@@ -6,6 +6,7 @@ import { BehaviorSubject, catchError, Observable, tap } from 'rxjs';
 interface LoginResponse {
   token: string;
   userId: number;
+  name: string;
   email: string;
   upiId: string;
   success: boolean;
@@ -94,6 +95,9 @@ export class AuthService {
           localStorage.setItem('userId', response.userId.toString());
           localStorage.setItem('email', response.email);
           localStorage.setItem('upiId', response.upiId);
+
+          localStorage.setItem('profileId', response.userId.toString());
+          localStorage.setItem('name', response.name);
 
           // Update Behaviorsubject - notifies all subscribers that user is now logged in
           this.isLoggedInSubject.next(true);

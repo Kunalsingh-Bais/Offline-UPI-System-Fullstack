@@ -3,6 +3,7 @@ import { FormBuilder, FormGroup, ReactiveFormsModule, Validators } from '@angula
 import { AuthService } from '../../services/auth';
 import { Router, RouterLink } from '@angular/router';
 import { CommonModule } from '@angular/common';
+import { UserService } from '../../services/user';
 
 @Component({
   selector: 'app-login',
@@ -20,7 +21,7 @@ export class LoginComponent implements OnInit{
   errorMessage = '';
   successMessage = '';
 
-  constructor(private formBuilder: FormBuilder, private authService: AuthService, private router: Router) {}
+  constructor(private formBuilder: FormBuilder, private authService: AuthService, private userService: UserService ,private router: Router) {}
 
   ngOnInit(): void {
     console.log('LoginComponent initialized');
@@ -68,15 +69,33 @@ export class LoginComponent implements OnInit{
         console.log('Email: ', response.email);
         console.log('Upi Id: ', response.upiId);
 
-        this.loading = false;
-        this.successMessage = 'Login successful! Redirecting...';
+        this.successMessage = 'Login successful! Loading profile...';
 
-        // wait for 1 second, then redirect to dashboard
-        setTimeout(() => {
-          this.router.navigate(['/dashboard']);
-        }, 1000);
+        this.userService.getProfile(response.userId).subscribe({
+          next: (profile) => {
+            console.log('Profile loaded after login: ', profile);
+
+            localStorage.setItem('profileId', profile.profileId.toString());
+            localStorage.setItem('name', profile.name);
+            localStorage.setItem('upiId', profile.upiId);
+
+            this.loading = false;
+            this.successMessage = 'Login successful! Redirecting...';
+
+            setTimeout(() => {
+              this.router.navigate(['/dashboard']);
+            }, 1000);
+          },
+
+          error: (error) => {
+            console.log('Profile loading failed:', error);
+
+            this.loading = false;
+            this.errorMessage = 'Failed to load profile';
+          }
+        });  
       },
-
+      
       // Error path
       error: (error) => {
         console.log('Login failed: ', error);

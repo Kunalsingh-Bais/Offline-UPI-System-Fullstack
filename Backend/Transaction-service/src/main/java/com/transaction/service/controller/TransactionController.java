@@ -131,4 +131,10 @@ public class TransactionController {
                             "Error: " + e.getMessage(), false, new java.util.Date().toString()));
         }
     }
+
+    // ------ GET /transaction/history/profile/{profileId} ------
+    @GetMapping("/history/profile/{profileId}")
+    public ResponseEntity<?> getTransactionHistory(@PathVariable Integer profileId) {
+        return ResponseEntity.ok(transactionService.getTransactionHistory(profileId));
+    }
 }

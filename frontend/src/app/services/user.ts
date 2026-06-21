@@ -1,6 +1,6 @@
 import { HttpClient } from '@angular/common/http';
 import { Injectable } from '@angular/core';
-import { catchError, Observable, tap, throwError } from 'rxjs';
+import { catchError, Observable, Subject, tap, throwError } from 'rxjs';
 
 // Interface for create profile request
 interface CreateProfileRequest {
@@ -90,7 +90,7 @@ export class UserService {
 
     // Make GET request to backend
     return this.http.get<GetProfileResponse>(
-      `${this.apiUrl}/profile/${authUserId}`  // Full URL with user Id 
+      `${this.apiUrl}/profile/auth/${authUserId}`  // Full URL with user Id 
     )
     .pipe(
       tap(response => {
@@ -130,6 +130,12 @@ export class UserService {
     );
   }
 
+// ------ Get Profile by Upi Id ------  
+  getProfileByUpiId(upiId: string): Observable<any> {
+    console.log('Searching profile by UPI ID: ', upiId);
+    return this.http.get<any>(`${this.apiUrl}/profile/upi/${upiId}`);
+  }
+
 // ------ Helper Method 1: Save Profile to Localstorage ------
   saveProfileToStorage(response: CreateProfileResponse): void {
     try {
@@ -152,10 +158,10 @@ export class UserService {
   getProfileIdFromStorage(): number | null {
     try {
       const profileId = localStorage.getItem('profileId');
-      if (profileId) {
-        return parseInt(profileId, 10);
+      if (!profileId || profileId === 'undefined' || profileId === 'null') {
+        return null;
       }
-      return null;
+      return Number(profileId)
     }
     catch (error) {
       console.log('Error reading profileId from localStorage: ', error);
@@ -199,6 +205,14 @@ export class UserService {
       console.log('Error clearing profile data: ',error);
     }
   }  
+
+  // Balance refresh method
+  private balanceRefreshSubject = new Subject<void>();
+  balanceRefresh$ = this.balanceRefreshSubject.asObservable();
+
+  triggerBalanceRefresh(): void {
+    this.balanceRefreshSubject.next();
+  }
 }
 
 

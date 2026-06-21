@@ -1,13 +1,32 @@
-import { Component, signal } from '@angular/core';
-import { RouterOutlet } from '@angular/router';
+import { CommonModule } from '@angular/common';
+import { Component, inject, signal } from '@angular/core';
+import { AuthService } from './services/auth';
+import { NavigationEnd, Router, RouterOutlet } from '@angular/router';
+import { HeaderComponent } from './pages/header/header';
+import { filter } from 'rxjs';
 
 @Component({
   selector: 'app-root',
   standalone:true,
-  imports: [RouterOutlet],
-  template: '<router-outlet></router-outlet>',
+  imports: [CommonModule,RouterOutlet,HeaderComponent],
+  templateUrl: './app.html',
   styleUrl: './app.css'
 })
 export class App {
-  title = 'UPI Payment System'
+
+  private authService = inject(AuthService);
+  private router = inject(Router);
+  isLoggedIn$ = this.authService.isLoggedIn$;
+  title = 'UPI Payment System';
+
+  showHeader = true;
+
+  constructor() {
+    this.router.events
+      .pipe(filter((event) => event instanceof NavigationEnd))
+      .subscribe(() => {
+        this.showHeader = this.router.url !== '/login' && 
+                          this.router.url !== '/register';
+      });
+  }
 }

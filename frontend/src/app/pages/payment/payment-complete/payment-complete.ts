@@ -5,8 +5,6 @@ import { Router } from '@angular/router';
 import { CommonModule } from '@angular/common';
 import { FormsModule, ReactiveFormsModule } from '@angular/forms';
 import { EncryptionService } from '../../../services/encryption';
-import { timestamp } from 'rxjs';
-
 
 @Component({
   selector: 'app-payment-complete',
@@ -182,6 +180,8 @@ export class PaymentCompleteComponent implements OnInit{
           this.loading = false;
           this.currentStep = 5;
           this.successMessage = response.message;
+
+          this.userService.triggerBalanceRefresh();
 
           // Redirect to dashboard after 3 seconds
           setTimeout(() => {

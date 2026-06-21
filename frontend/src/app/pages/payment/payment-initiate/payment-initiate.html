@@ -120,16 +120,20 @@
         <div>
           <h2 class="text-xl font-bold text-gray-900 mb-4"> Receiver Details</h2>
 
-          <div class="bg-green-50 border-l-4 border-green-500 p-4 rounded-lg mb-6">
+          <div *ngIf="receiverDetails" class="bg-green-50 border-l-4 border-green-500 p-4 rounded-lg mb-6">
             <div class="flex items-center space-x-4">
               <div class="text-3xl">✅</div>
-              <div>
-                <p class="font-semibold text-gray-900"> {{ receiverDetails.name }}</p>
-                <p class="text-sm text-gray-600">{{ receiverDetails.upiId }}</p>
-              </div>
-            </div>
+            <div>
+            <p class="font-semibold text-gray-900">{{ receiverDetails.name }}</p>
+            <p class="text-sm text-gray-600">{{ receiverDetails.upiId }}</p>
           </div>
-        </div>
+       </div>
+      </div>
+
+      <div *ngIf="!receiverDetails" class="bg-red-50 border-l-4 border-red-500 p-4 rounded-lg mb-6">
+        Receiver not found. Please check UPI ID.
+      </div>
+    </div>
 
         <!-- Amount Input-->
         <div>

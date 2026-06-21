@@ -1,10 +1,9 @@
-import { Component, OnInit } from '@angular/core';
+import { ChangeDetectorRef, Component, OnInit } from '@angular/core';
 import { FormBuilder, FormGroup, FormsModule, ReactiveFormsModule, Validators, } from '@angular/forms';
 import { UserService } from '../../../services/user';
 import { TransactionService } from '../../../services/transaction';
 import { Router, RouterModule } from '@angular/router';
 import { CommonModule } from '@angular/common';
-
 
 @Component({
   selector: 'app-payment-initiate',
@@ -33,7 +32,7 @@ export class PaymentInitiateComponent implements OnInit {
    */
   currentStep = 1;   
   
-  constructor(private formBuilder: FormBuilder, private userService: UserService,private transactionService: TransactionService,private router: Router) {}
+  constructor(private formBuilder: FormBuilder, private userService: UserService,private transactionService: TransactionService,private router: Router, private cdr: ChangeDetectorRef) {}
 
   ngOnInit(): void {
     console.log('PaymentInitiateComponent initialized');
@@ -46,8 +45,13 @@ export class PaymentInitiateComponent implements OnInit {
   private loadSenderInfo(): void {
     console.log('Loading sender info...');
 
-    this.senderUpiId = this.userService.getUpiIdFromStorage();
-    this.senderProfileId = this.userService.getProfileIdFromStorage();
+    this.senderUpiId = localStorage.getItem('upiId');
+    const profileIdvalue = localStorage.getItem('profileId');
+
+    this.senderProfileId = profileIdvalue ? Number(profileIdvalue) : null; 
+
+    console.log('Sender UPI:', this.senderUpiId);
+    console.log('Profile ID:', this.senderProfileId);
 
     if (!this.senderUpiId || !this.senderProfileId) {
       console.log('Sender info not found');
@@ -77,7 +81,7 @@ export class PaymentInitiateComponent implements OnInit {
 // ------ Method 3: Search Receiver ------
   // Search for receiver by UPI ID
   searchReceiver(): void {
-    const receiverUpiId = this.paymentForm.get('receiverUpiId')?.value;
+    const receiverUpiId = this.paymentForm.get('receiverUpiId')?.value?.trim();
 
     if(!receiverUpiId) {
       this.errorMessage = 'Please enter receiver UPI ID';
@@ -92,26 +96,49 @@ export class PaymentInitiateComponent implements OnInit {
 
     this.loading = true;
     this.errorMessage = '';
+    this.receiverDetails = null;
 
     console.log('Searching for receiver: ', receiverUpiId);
 
-    // TODO: replace with actual API call
-    // For now , simulating receiver found
-    setTimeout(() => {
+    this.userService.getProfileByUpiId(receiverUpiId).subscribe({
+      next:(response: any) => {
+        console.log('Receiver response: ', response);
 
-      // Mock receiver data
-      this.receiverDetails = {
-        profileId: 2,
-        name: 'Ravi ' + receiverUpiId.split('@')[0],
-        upiId: receiverUpiId,
-        phone: '9876543210'
-      };
+        if (response && (response.success || response.profileId || response.upiId)) {
 
-      this.loading = false;
-      this.currentStep = 2;
+          this.receiverDetails = {
+            profileId: response.profileId || response.id,
+            name: response.name || response.userName || receiverUpiId,
+            upiId: response.upiId || receiverUpiId
+          };
 
-      console.log('Receiver found: ', this.receiverDetails);
-    }, 1000);
+          this.loading = false;
+          this.currentStep = 2;
+          console.log('Receiver found: ', this.receiverDetails);
+          
+          this.cdr.detectChanges();
+        }
+        else {
+          console.warn('Receiver not found');
+          this.errorMessage = 'No user found with UPI ID: ' +receiverUpiId;
+        }
+
+        this.loading = false;
+      },
+
+      error: (error: any) => {
+        console.error('Error searching receiver: ', error);
+        this.loading = false;
+        this.receiverDetails = null;
+        
+        if(error.status === 404) {
+          this.errorMessage = 'No user found with UPI ID: ' + receiverUpiId;
+        }
+        else {
+          this.errorMessage = 'Error searching receiver. Please try again.';
+        }
+      }
+    });
   }  
 
 // ------ Method 4: Handle Payment submission ------

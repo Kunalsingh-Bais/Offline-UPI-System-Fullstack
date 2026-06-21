@@ -2,6 +2,7 @@ import { Component, OnInit } from '@angular/core';
 import { UserService } from '../../services/user';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
+import { TransactionService } from '../../services/transaction';
 
 @Component({
   selector: 'app-transaction-history',
@@ -28,10 +29,12 @@ export class TransactionHistoryComponent implements OnInit{
   showModal = false;
   errorMessage = '';
 
-  constructor(private userService: UserService) {}
+  constructor(private userService: UserService, private transactionService: TransactionService) {}
 
   ngOnInit(): void {
     console.log('TransactionHistoryComponent initialized');
+    this.userUpiId = localStorage.getItem('upiId');
+    console.log('Current User upi: ', this.userUpiId);
 
     this.loadUserInfo();
     this.loadTransactions();
@@ -42,52 +45,34 @@ export class TransactionHistoryComponent implements OnInit{
     this.userUpiId = this.userService.getUpiIdFromStorage();
   }  
 
-// ------ Method 2: Load Transactions ------
+// ------ Method 2: Load Transactions History ------
   private loadTransactions(): void {
     console.log('Loading transactions...');
 
+    const profileIdValue = localStorage.getItem('profileId');
+
+    if (!profileIdValue) {
+      this.errorMessage = 'Profile not found. Please login again.';
+      return;
+    }
+
+    const profileId = Number(profileIdValue);
     this.loading = true;
 
-    // TODO: Call API 
-    // this.transactionService.getTransactions()
+    this.transactionService.getTransactionHistory(profileId).subscribe({
+      next: (response) => {
+        this.allTransactions = response;
+        this.filterTransactions();
+        this.loading = false;
+        console.log('Transaction history loaded: ', response);
+      },
 
-    // Mock data for now
-    setTimeout(() => {
-      this.allTransactions = [
-        {
-          transactionId: 'TXN_001',
-          senderUpiId: this.userUpiId,
-          receiverUpiId: 'alice@upi',
-          amount: 500,
-          status: 'SUCCESS',
-          description: 'Food payment',
-          createdAt: new Date(Date.now() -1*24*60*60*1000).toLocaleString()
-        },
-        {
-          trasactionId: 'TXN_002',
-          senderUpiId: 'ram@upi',
-          receiverUpiId: this.userUpiId,
-          amount: 1000,
-          status: 'SUCCESS',
-          description: 'Salary',
-          createdAt: new Date(Date.now() -3*24*60*60*1000).toLocaleString()
-        },
-        {
-          trasactionId: 'TXN_003',
-          senderUpiId: this.userUpiId,
-          receiverUpiId: 'charlie@upi',
-          amount: 500,
-          status: 'FAILED',
-          description: 'Loan repayment',
-          createdAt: new Date(Date.now() -5 * 60 *1000).toLocaleString()
-        }
-      ];
-
-      this.filterTransactions();
-      this.loading = false;
-
-      console.log('Transactions loaded: ', this.allTransactions.length);
-    }, 1000);
+      error: (error) => {
+        console.error('Error loading transaction history: ', error);
+        this.loading = false;
+        this.errorMessage = 'Failed to load transaction history.';
+      }
+    });
   }  
 
 // ------ Method 3: Filter Transactions ------
@@ -162,22 +147,25 @@ export class TransactionHistoryComponent implements OnInit{
     }
   }  
 
+  private normalizeUpi(upi: string | null | undefined): string {
+    return (upi || '').trim().toLowerCase();
+  }
+
+  isReceived(transaction: any): boolean {
+    return this.normalizeUpi(transaction.receiverUpiId) === this.normalizeUpi(this.userUpiId);
+  }
+
   getTransactionIcon(transaction: any): string {
-    if (transaction.receiverUpiId === this.userUpiId) {
-      return '👈';
-    }
-    else {
-      return '👉';
-    }
+    const status = transaction.status?.toUpperCase();
+
+    if (status === 'FAILED') return '❌';
+    if (status === 'PENDING') return '⏳';
+
+    return this.isReceived(transaction) ? '👉' : '👈';
   }
 
   getTransactionType(transaction: any): string {
-    if (transaction.receiverUpiId === this.userUpiId) {
-      return 'Received';
-    }
-    else {
-      return 'Sent';
-    }
+    return this.isReceived(transaction) ? 'Received' : 'Sent';
   }
 
   formatCurrency(amount: number): string {
@@ -185,5 +173,29 @@ export class TransactionHistoryComponent implements OnInit{
       minimumFractionDigits: 2,
       maximumFractionDigits: 2
     });
+  }
+
+  getAmountClass(txn: any): string {
+    if (txn.status?.toUpperCase() === 'FAILED') {
+      return 'text-red-500';
+    }
+    if (txn.status?.toUpperCase() === 'PENDING') {
+      return 'text-yellow-500';
+    }
+
+    return txn.senderUpiId === this.userUpiId ? 'text-red-600' : 
+    'text-green-600';
+
+  } 
+
+  getAmountPrefix(txn: any): string {
+    if (txn.status?.toUpperCase() === 'FAILED') {
+      return '✖ ';
+    }
+    if (txn.status?.toUpperCase() === 'PENDING') {
+      return '⏳ ';
+    }
+
+    return txn.senderUpiId === this.userUpiId ? '-' : '+';
   }
 }

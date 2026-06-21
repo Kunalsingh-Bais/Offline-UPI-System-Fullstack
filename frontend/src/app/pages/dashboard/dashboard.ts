@@ -1,4 +1,4 @@
-import { Component, OnInit } from '@angular/core';
+import { ChangeDetectorRef, Component, OnInit } from '@angular/core';
 import { UserService } from '../../services/user';
 import { TransactionService } from '../../services/transaction';
 import { Router, RouterModule } from '@angular/router';
@@ -17,14 +17,14 @@ export class DashboardComponent implements OnInit{
   userName: string | null = null;
   userUpiId: string | null = null;
   userEmail: string | null = null;
-  walletBalance: number = 0;
+  walletBalance: null | number = 0;
   profileId: number | null = null;
   loadingBalance = true;
   loadingTransactions = false;
   recentTransactions: any[] = [];    // last 5 transactions
   errorMessage = '';
 
-  constructor(private userService: UserService, private transactionService: TransactionService, private router: Router) {}
+  constructor(private userService: UserService, private transactionService: TransactionService, private router: Router, private cdr: ChangeDetectorRef) {}
 
   ngOnInit(): void {
     console.log('DashboardComponent initialized');
@@ -38,14 +38,19 @@ export class DashboardComponent implements OnInit{
   private loadUserInfo(): void {
     console.log('Loading user info...');
 
-    this.userName = this.userService.getUserNameFromStorage();
-    this.userUpiId = this.userService.getUpiIdFromStorage();
+    this.userName = localStorage.getItem('name') || 'User';
+    this.userUpiId = this.userService.getUpiIdFromStorage() || localStorage.getItem('upiId');
     this.userEmail = localStorage.getItem('email');
-    this.profileId = this.userService.getProfileIdFromStorage();
+
+    const storedProfileId = this.userService.getProfileIdFromStorage();
+    const storedUSerId = localStorage.getItem('userId');
+
+    this.profileId = storedProfileId || (storedUSerId ? Number(storedUSerId) : null);
 
     console.log('User info loaded');
     console.log('Name: ', this.userEmail);
     console.log('UPI: ', this.userUpiId);
+    console.log('Profile ID: ', this.profileId);
   }  
 
 // ------ Method 2: Load wallet balance ------
@@ -59,20 +64,38 @@ export class DashboardComponent implements OnInit{
     }
 
     this.loadingBalance = true;
+    this.walletBalance = null;
 
     this.userService.getBalance(this.profileId).subscribe({
       next: (response) => {
-        if (response.success) {
-          this.walletBalance = response.balance;
-          console.log('Balance loaded: ₹' + this.walletBalance);
+        console.log('Balance response: ', response);
+
+        if (response !== null && response !== undefined) {
+
+          if(response.balance !== undefined) {
+            this.walletBalance = Number(response.balance);
+          }
+          else if (typeof response === 'number') {
+            this.walletBalance = response;
+          }
+          else if(response.success && response.balance !== undefined) {
+            this.walletBalance = Number(response.balance);
+          }
+          else {
+            console.log('Full response: ', JSON.stringify(response));
+            this.walletBalance = 0;
+          }
         }
         this.loadingBalance = false;
+        console.log('loadingBalance: ', this.loadingBalance);
+        this.cdr.detectChanges();
       },
 
       error: (error) => {
         console.log('Error loading balance: ', error);
         this.loadingBalance = false;
         this.errorMessage = 'Failed to load wallet balance.';
+        this.cdr.detectChanges();
       }
     });
   }  
@@ -80,33 +103,34 @@ export class DashboardComponent implements OnInit{
 // ------ Method 3: Load recent transaction ------
   // shows last 5 transactions history
   private loadRecentTransactions(): void {
-    console.log('Loading recent transactions...');
+    console.log('Loading transactions...');
 
-    this.loadingTransactions = false;
+    const profileIdValue = localStorage.getItem('profileId');
 
-    // Mock data (replace with API call)
-    this.recentTransactions = [
-      {
-        transactionId: 'TXN_001',
-        senderUpiId: this.userUpiId || 'unknown',
-        receiverUpiId: 'receiver@upi',
-        amount: 500,
-        status: 'SUCCESS',
-        createdAt: new Date(Date.now() -1*24*60 * 60 * 1000).toLocaleString(),
-        description: 'Payment for food'
+    if (!profileIdValue) {
+      this.recentTransactions = [];
+      this.loadingTransactions = false;
+      this.errorMessage = 'Profile not found. Please login again.';
+      return;
+    }
+
+    const profileId = Number(profileIdValue);
+    this.loadingTransactions = true;
+
+    this.transactionService.getTransactionHistory(profileId).subscribe({
+      next: (response) => {
+        this.recentTransactions = response.slice(0, 3);
+        this.loadingTransactions = false;
+        console.log('Transaction history loaded: ', response);
       },
-      {
-        transactionId: 'TXN_002',
-        senderUpiId: 'sender@upi',
-        receiverUpiId: this.userUpiId || 'unknown',
-        amount: 1000,
-        status: 'SUCCESS',
-        createdAt: new Date(Date.now() -3*24*60 * 60 * 1000).toLocaleString(),
-        description: 'Salary received'
-      }
-    ];
 
-    console.log('Recent transaction loaded: ', this.recentTransactions.length);
+      error: (error) => {
+        console.error('Error loading transaction history: ', error);
+        this.recentTransactions = [];
+        this.loadingTransactions = false;
+        this.errorMessage = 'Failed to load transaction history.';
+      }
+    });
   }  
 
 // ------ Method 4: Navigate to send money ------
@@ -152,10 +176,10 @@ export class DashboardComponent implements OnInit{
   // Get emoji icon based on transaction type
   getTransactionIcon(transaction: any): string {
    if(transaction.receiverUpiId === this.userUpiId) {
-     return '👈';  // Money in
+     return '👉';  // Money in
    }
    else {
-     return '👉';  // Money out
+     return '👈';  // Money out
    }
   } 
 

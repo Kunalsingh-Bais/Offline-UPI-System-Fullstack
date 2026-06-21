@@ -22,7 +22,7 @@
             👤 {{ userName || 'User'}}
           </p>  
           <p class="text-xs text-gray-600">
-            {{ userUpiId || 'loading...' }}
+            {{ userUpiId || 'No UPI ID' }}
           </p>
         </div>
 
@@ -32,8 +32,11 @@
 
           <!-- Balance with loading state -->
           <div class="flex items-center space-x-2">
-            <p class="text-lg font-bold text-blue-600">
+            <p *ngIf="!loadingBalance" class="text-lg font-bold text-blue-600">
               {{ formatCurrency(walletBalance)}}  
+            </p>
+            <p *ngIf="loadingBalance">
+              Loading...
             </p>
 
             <!-- Refresh button -->

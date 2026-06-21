@@ -112,7 +112,7 @@ export class TransactionService {
         return throwError(() => error);
       })
     );
-  }  
+  }    
 
 // ------ Method 3: Complete Transaction ------
   completeTransaction(request: CompleteTransactionRequest): Observable<CompleteTransactionResponse> {
@@ -140,6 +140,13 @@ export class TransactionService {
         console.error('Error completing transaction: ', error);
         return throwError(() => error);
       })
+    );
+  }  
+
+// ------ Method 4: Transaction History ------
+  getTransactionHistory(profileId: number): Observable<any[]> {
+    return this.http.get<any[]>(
+      `${this.apiUrl}/history/profile/${profileId}`
     );
   }  
 }

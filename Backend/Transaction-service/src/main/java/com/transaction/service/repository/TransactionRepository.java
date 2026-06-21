@@ -17,6 +17,8 @@ public interface TransactionRepository extends JpaRepository<Transaction, Intege
     // Check if transaction exists
     boolean existsByTransactionId(String transactionId);
 
+    List<Transaction> findBySenderProfileIdOrReceiverProfileIdOrderByCreatedAtDesc(Integer senderProfileId, Integer receiverProfileId);
+
     // Find all transactions sent by a user
     List<Transaction> findBySenderUpiId(String senderUpiId);
 

@@ -1,4 +1,4 @@
-<div class="min-h-screen ng-gradient-to-br from-blue-50 to-indigo-100 py-8 px-4">
+<div class="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-100 py-8 px-4">
   <div class="max-w-6xl mx-auto">
 
     <!------ Header ------>
@@ -88,10 +88,10 @@
 
             <div>
               <p class="font-semibold text-gray-900">
-                <span *ngIf="txn.receiverUpiId === userUpiId">
+                <span *ngIf="isReceived(txn)">
                   Received from {{ txn.senderUpiId }}
                 </span>
-                <span *ngIf="txn.senderUpiId === userUpiId">
+                <span *ngIf="!isReceived(txn)">
                   Sent to {{ txn.receiverUpiId }}
                 </span>
               </p>
@@ -104,8 +104,8 @@
 
           <!-- Right: Amount + Status -->
           <div class="text-right">
-            <p class="text-xl font-bold text-gray-900">
-              {{ formatCurrency(txn.amount) }}
+            <p class="text-xl font-bold" [ngClass]="getAmountClass(txn)">
+              {{ getAmountPrefix(txn) }}{{ formatCurrency(txn.amount) }}
             </p>
             <span [ngClass]="getStatusBadgeClass(txn.status)"  
               class="inline-block px-3 py-1 rounded-full text-xs font-semibold mt-1">
@@ -156,7 +156,10 @@
       <!-- Amount -->
       <div>
         <p class="text-sm text-gray-600 font-medium">Amount</p>
-        <p class="text-lg font-bold text-blue-600">{{ formatCurrency(selectedTransaction.amount) }}</p>
+        <p class="text-lg font-bold" [ngClass]="selectedTransaction.senderUpiId === userUpiId ? 'text-red-600' : 'text-green-600'">
+          {{ selectedTransaction.senderUpiId === userUpiId ? '-' : '+' }}
+          {{ formatCurrency(selectedTransaction.amount) }}
+        </p>
       </div>
 
       <!-- Status -->

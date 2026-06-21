@@ -1,4 +1,4 @@
-import { Component, OnInit } from '@angular/core';
+import { ChangeDetectorRef, Component, OnInit } from '@angular/core';
 import { AuthService } from '../../services/auth';
 import { UserService } from '../../services/user';
 import { Router } from '@angular/router';
@@ -20,12 +20,16 @@ export class HeaderComponent implements OnInit{
   mobileMenuOpen = false;           // Mobile menu toggle
   loadingBalance = false;
 
-  constructor(private authService: AuthService, private userService: UserService, private router: Router) {}
+  constructor(private authService: AuthService, private userService: UserService, private router: Router , private cdr: ChangeDetectorRef) {}
 
   ngOnInit(): void {
     console.log('HeaderComponent initialized');
     this.loadUserInfo();
     this.loadWalletBalance();
+
+    this.userService.balanceRefresh$.subscribe(() => {
+      this.loadWalletBalance();
+    });
   }
 
 // ------ Method 1: Load User Info ------
@@ -34,8 +38,8 @@ export class HeaderComponent implements OnInit{
     console.log('Loading user info...');
 
     // Get from UserService helper methods
-    this.userName = this.userService.getUserNameFromStorage();
-    this.userUpiId = this.userService.getUpiIdFromStorage();
+    this.userName = localStorage.getItem('name') || 'User';
+    this.userUpiId = localStorage.getItem('upiId') || '';
 
     console.log('User info loaded');
     console.log('Name: ', this.userName);
@@ -66,11 +70,14 @@ export class HeaderComponent implements OnInit{
           console.log('Balance loaded: ₹' + this.walletBalance);
         }
         this.loadingBalance = false
+        this.cdr.detectChanges();
       },
 
       error: (error) => {
         console.log('Error loading balance: ', error);
         this.loadingBalance = false;
+        this.walletBalance = 0;
+        this.cdr.detectChanges();
       }
     });
   }  
