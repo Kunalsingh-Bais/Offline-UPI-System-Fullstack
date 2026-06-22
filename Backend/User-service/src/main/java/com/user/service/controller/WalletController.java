@@ -41,23 +41,8 @@ public class WalletController {
     // ------ POST = /user/wallet/update-balance ------
     @PostMapping("/update-balance")
     public ResponseEntity<UpdateBalanceResponse> updateBalance(@RequestBody UpdateBalanceRequest request) {
-        try {
-            UpdateBalanceResponse response = walletService.updateBalance(request);
-
-            if(response.isSuccess()) { // 200 OK - Balance updated
-                return ResponseEntity.ok(response);
-            }
-            else {
-                // 400 Bad Request (insufficient balance, invalid operation, etc.)
-                return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(response);
-            }
-        }
-        catch (Exception e) {
-            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
-                    .body(new UpdateBalanceResponse(null,null,null,null,
-                            request.getOperation(), request.getTransactionId(),false,"Error: " +e.getMessage()));
-        }
+        UpdateBalanceResponse response = walletService.updateBalance(request);
+        // 200 OK - Balance updated
+        return ResponseEntity.ok(response);
     }
-
-
 }

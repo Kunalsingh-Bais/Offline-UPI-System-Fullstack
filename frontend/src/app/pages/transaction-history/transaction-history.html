@@ -143,12 +143,12 @@
       </div>
 
       <!-- From/To -->
-      <div *ngIf="selectedTransaction.senderUpiId === userUpiId">
+      <div *ngIf="!isReceived(selectedTransaction)">
         <p class="text-sm text-gray-600 font-medium">Sent to</p>
-        <p class="text-sm text-gray-900">{{ selectedTransaction.receiverUpiId }}</p>
+        <p class="text-sm text-gray-900">{{ selectedTransaction.receiverUpiId }} </p>
       </div>
 
-      <div *ngIf="selectedTransaction.receiverUpiId === userUpiId">
+      <div *ngIf="isReceived(selectedTransaction)">
         <p class="text-sm text-gray-600 font-medium">Received from</p>
         <p class="text-sm text-gray-900">{{ selectedTransaction.senderUpiId }}</p>
       </div>
@@ -156,8 +156,8 @@
       <!-- Amount -->
       <div>
         <p class="text-sm text-gray-600 font-medium">Amount</p>
-        <p class="text-lg font-bold" [ngClass]="selectedTransaction.senderUpiId === userUpiId ? 'text-red-600' : 'text-green-600'">
-          {{ selectedTransaction.senderUpiId === userUpiId ? '-' : '+' }}
+        <p class="text-lg font-bold" [ngClass]="getAmountClass(selectedTransaction)">
+          {{ getAmountPrefix(selectedTransaction) }} 
           {{ formatCurrency(selectedTransaction.amount) }}
         </p>
       </div>

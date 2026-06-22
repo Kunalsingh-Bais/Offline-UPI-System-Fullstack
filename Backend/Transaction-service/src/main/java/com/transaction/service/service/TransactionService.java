@@ -182,11 +182,13 @@ public class TransactionService {
                 // Check if debit successful
                 Boolean debitSuccess = (Boolean) debitResponse.get("success");
                 if (!debitSuccess) {
-                    txn.setTransactionId("FAILED");
+                    txn.setStatus("FAILED");
                     transactionRepository.save(txn);
 
+                    String message = debitResponse.get("message") != null ? debitResponse.get("message").toString() : "Failed to debit sender's wallet";
+
                     return new CompleteTransactionResponse(txn.getTransactionId(),"FAILED", null, null,
-                            "Failed to debit sender's wallet", false, new java.util.Date().toString());
+                            message, false, new java.util.Date().toString());
                 }
             }
             catch (Exception e) {

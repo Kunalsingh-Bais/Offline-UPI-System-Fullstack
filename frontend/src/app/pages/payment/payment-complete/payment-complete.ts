@@ -1,4 +1,4 @@
-import { Component, OnInit } from '@angular/core';
+import { ChangeDetectorRef, Component, OnInit } from '@angular/core';
 import { TransactionService } from '../../../services/transaction';
 import { UserService } from '../../../services/user';
 import { Router } from '@angular/router';
@@ -35,7 +35,7 @@ export class PaymentCompleteComponent implements OnInit{
   */
   currentStep = 1;
   
-  constructor(private trasactionServie: TransactionService, private userService: UserService, private router: Router, private encryptionService: EncryptionService) {}
+  constructor(private trasactionServie: TransactionService, private userService: UserService, private router: Router, private encryptionService: EncryptionService, private cdr: ChangeDetectorRef) {}
 
   ngOnInit(): void {
     console.log('PaymentCompleteComponent initialized');
@@ -197,6 +197,8 @@ export class PaymentCompleteComponent implements OnInit{
           this.loading = false;
           this.currentStep = 5;
           this.errorMessage = response.message || 'Payment failed. Please try again.'
+
+          this.cdr.detectChanges();
         }
       },
 
@@ -206,6 +208,8 @@ export class PaymentCompleteComponent implements OnInit{
         this.loading = false;
         this.currentStep = 5;
         this.errorMessage = error.error?.message || 'Failed to complete payment. Please try again.';
+
+        this.cdr.detectChanges();
       }
     });
   }  

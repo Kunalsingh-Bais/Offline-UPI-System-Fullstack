@@ -1,4 +1,4 @@
-import { Component, OnInit } from '@angular/core';
+import { ChangeDetectorRef, Component, OnInit } from '@angular/core';
 import { UserService } from '../../services/user';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
@@ -29,20 +29,19 @@ export class TransactionHistoryComponent implements OnInit{
   showModal = false;
   errorMessage = '';
 
-  constructor(private userService: UserService, private transactionService: TransactionService) {}
+  constructor(private userService: UserService, private transactionService: TransactionService, private cdr: ChangeDetectorRef) {}
 
   ngOnInit(): void {
     console.log('TransactionHistoryComponent initialized');
-    this.userUpiId = localStorage.getItem('upiId');
-    console.log('Current User upi: ', this.userUpiId);
-
+    
     this.loadUserInfo();
     this.loadTransactions();
   }
 
 // ------ Method 1: Load user info ------
   private loadUserInfo(): void {
-    this.userUpiId = this.userService.getUpiIdFromStorage();
+    this.userUpiId = localStorage.getItem('upiId')?.trim().toLowerCase() || null;
+    console.log('History userUpiId: ', this.userUpiId);
   }  
 
 // ------ Method 2: Load Transactions History ------
@@ -53,6 +52,7 @@ export class TransactionHistoryComponent implements OnInit{
 
     if (!profileIdValue) {
       this.errorMessage = 'Profile not found. Please login again.';
+      this.cdr.detectChanges();
       return;
     }
 
@@ -62,15 +62,33 @@ export class TransactionHistoryComponent implements OnInit{
     this.transactionService.getTransactionHistory(profileId).subscribe({
       next: (response) => {
         this.allTransactions = response;
+
         this.filterTransactions();
         this.loading = false;
-        console.log('Transaction history loaded: ', response);
+        console.log('Transaction history loaded: ', response); 
+
+        this.cdr.detectChanges();
+
+        response.forEach((txn: any) => {
+        console.log({
+        currentUser: this.userUpiId,  
+        Sender: txn.senderUpiId,
+        Receiver: txn.receiverUpiId,
+        received: this.isReceived(txn),
+        Status: txn.status
+      });
+    });
+       // this.filterTransactions();
+       // this.loading = false;
+       // console.log('Transaction history loaded: ', response); 
       },
 
       error: (error) => {
         console.error('Error loading transaction history: ', error);
         this.loading = false;
         this.errorMessage = 'Failed to load transaction history.';
+
+        this.cdr.detectChanges();
       }
     });
   }  
@@ -177,25 +195,20 @@ export class TransactionHistoryComponent implements OnInit{
 
   getAmountClass(txn: any): string {
     if (txn.status?.toUpperCase() === 'FAILED') {
-      return 'text-red-500';
+      return 'text-red-600';
     }
     if (txn.status?.toUpperCase() === 'PENDING') {
-      return 'text-yellow-500';
+      return 'text-yellow-600';
     }
 
-    return txn.senderUpiId === this.userUpiId ? 'text-red-600' : 
-    'text-green-600';
+    return this.isReceived(txn) ? 'text-green-600' : 'text-red-600';
 
   } 
 
   getAmountPrefix(txn: any): string {
-    if (txn.status?.toUpperCase() === 'FAILED') {
-      return '✖ ';
-    }
-    if (txn.status?.toUpperCase() === 'PENDING') {
-      return '⏳ ';
-    }
+    if (txn.status?.toUpperCase() === 'PENDING') return '⏳';
+    if (txn.status?.toUpperCase() === 'FAILED') return '❌';
 
-    return txn.senderUpiId === this.userUpiId ? '-' : '+';
+    return this.isReceived(txn) ? '+' : '-';
   }
 }

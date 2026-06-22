@@ -101,7 +101,7 @@ export class DashboardComponent implements OnInit{
   }  
 
 // ------ Method 3: Load recent transaction ------
-  // shows last 5 transactions history
+  // shows last 3 transactions history
   private loadRecentTransactions(): void {
     console.log('Loading transactions...');
 
@@ -111,6 +111,7 @@ export class DashboardComponent implements OnInit{
       this.recentTransactions = [];
       this.loadingTransactions = false;
       this.errorMessage = 'Profile not found. Please login again.';
+      this.cdr.detectChanges();
       return;
     }
 
@@ -122,6 +123,8 @@ export class DashboardComponent implements OnInit{
         this.recentTransactions = response.slice(0, 3);
         this.loadingTransactions = false;
         console.log('Transaction history loaded: ', response);
+
+        this.cdr.detectChanges(); 
       },
 
       error: (error) => {
@@ -129,6 +132,8 @@ export class DashboardComponent implements OnInit{
         this.recentTransactions = [];
         this.loadingTransactions = false;
         this.errorMessage = 'Failed to load transaction history.';
+
+        this.cdr.detectChanges();
       }
     });
   }  
