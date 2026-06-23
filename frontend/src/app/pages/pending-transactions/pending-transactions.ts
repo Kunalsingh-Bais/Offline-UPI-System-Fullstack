@@ -1,6 +1,7 @@
 import { CommonModule } from '@angular/common';
 import { ChangeDetectorRef, Component, OnInit } from '@angular/core';
 import { IndexedDbService, PendingTransaction } from '../../services/indexed-db';
+import { TransactionService } from '../../services/transaction';
 
 @Component({
   selector: 'app-pending-transactions',
@@ -16,7 +17,7 @@ export class PendingTransactionsComponent implements OnInit{
   pendingTransactions: PendingTransaction[] =[];
   loading = false;
 
-  constructor(private indexedDbService: IndexedDbService, private cdr: ChangeDetectorRef) {}
+  constructor(private indexedDbService: IndexedDbService, private cdr: ChangeDetectorRef, private transactionService: TransactionService) {}
 
   ngOnInit(): void {
     this.loadPendingTransactions();
@@ -40,6 +41,7 @@ export class PendingTransactionsComponent implements OnInit{
     }
     finally {
       this.loading = false;
+      this.cdr.detectChanges();
     }
   }
 
@@ -56,5 +58,61 @@ export class PendingTransactionsComponent implements OnInit{
 
     // Reload list after deleting
     await this.loadPendingTransactions();
+  }  
+
+// ------ Method 3: Retry Pending transaction ------
+  async retryTransaction(txn: PendingTransaction): Promise<void> {
+    if(!txn.id) {
+      return;
+    }
+
+    // Step 1: Mark transaction as SYNCING    
+    txn.status = 'SYNCING';
+    txn.retryCount = txn.retryCount + 1;
+
+    await this.indexedDbService.updatePendingTransaction(txn);
+
+    // Step 2: Send transaction to backend again
+    try {
+      const request = {
+        encryptedData: txn.encryptedData,
+        transactionId: txn.transactionId
+      };
+
+      this.transactionService.completeTransaction(request).subscribe({
+        next: async (response: any) => {
+          if (response.success) {
+
+            // Step 3: If backend success, delete from IndexedDB
+            await this.indexedDbService.deletePendingTransaction(txn.id!);
+          }
+          else {
+
+            // Step 4: If backend says failed, mark as FAILED
+            txn.status = 'FAILED';
+            await this.indexedDbService.updatePendingTransaction(txn);
+          }
+
+          // Step 5: Reload latest list
+          await this.loadPendingTransactions();
+        },
+
+        error: async (error) => {
+          console.error('Retry failed: ', error);
+
+          txn.status = 'PENDING';
+
+          await this.indexedDbService.updatePendingTransaction(txn);
+          await this.loadPendingTransactions();
+        }
+      });
+    }
+    catch (error) {
+      console.error('Retry error: ', error);
+      txn.status = 'PENDING';
+
+      await this.indexedDbService.updatePendingTransaction(txn);
+      await this.loadPendingTransactions();
+    }
   }  
 }

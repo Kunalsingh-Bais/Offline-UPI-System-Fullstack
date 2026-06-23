@@ -5,6 +5,7 @@ import { Router } from '@angular/router';
 import { CommonModule } from '@angular/common';
 import { FormsModule, ReactiveFormsModule } from '@angular/forms';
 import { EncryptionService } from '../../../services/encryption';
+import { IndexedDbService } from '../../../services/indexed-db';
 
 @Component({
   selector: 'app-payment-complete',
@@ -35,7 +36,7 @@ export class PaymentCompleteComponent implements OnInit{
   */
   currentStep = 1;
   
-  constructor(private trasactionServie: TransactionService, private userService: UserService, private router: Router, private encryptionService: EncryptionService, private cdr: ChangeDetectorRef) {}
+  constructor(private trasactionServie: TransactionService, private userService: UserService, private router: Router, private encryptionService: EncryptionService, private cdr: ChangeDetectorRef, private indexedDbService: IndexedDbService) {}
 
   ngOnInit(): void {
     console.log('PaymentCompleteComponent initialized');
@@ -203,10 +204,30 @@ export class PaymentCompleteComponent implements OnInit{
       },
 
       // Error
-      error: (error) => {
+      error: async (error) => {
         console.error('Error completing payment: ', error);
         this.loading = false;
         this.currentStep = 5;
+
+        if (!this.encryptedData) {
+          this.errorMessage = 'Encrypted payment data missing. Cannot save offline transaction.';
+          this.cdr.detectChanges();
+          return;
+        }
+
+        // Save to IndexedDB only when APi/Backend fails
+        await this.indexedDbService.savePendingTransaction({
+          transactionId: this.transactionData.transactionId,
+          senderUpiId: this.transactionData.senderUpiId,
+          receiverUpiId: this.transactionData.receiverUpiId,
+          amount: this.transactionData.amount,
+          description: this.transactionData.description,
+          encryptedData: this.encryptedData,
+          status: 'PENDING',
+          createdAt: new Date().toISOString(),
+          retryCount: 0
+        });
+
         this.errorMessage = error.error?.message || 'Failed to complete payment. Please try again.';
 
         this.cdr.detectChanges();

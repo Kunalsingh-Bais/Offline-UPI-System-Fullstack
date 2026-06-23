@@ -1,5 +1,4 @@
 import { Injectable } from '@angular/core';
-import { readonly } from '@angular/forms/signals';
 
 export interface PendingTransaction {
   id?: number;
@@ -8,6 +7,7 @@ export interface PendingTransaction {
   receiverUpiId: string;
   amount: number;
   description?: string;
+  encryptedData: string;
   status: 'PENDING' | 'SYNCING' | 'FAILED';
   createdAt: string;
   retryCount: number;

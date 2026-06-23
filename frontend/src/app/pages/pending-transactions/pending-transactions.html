@@ -77,14 +77,13 @@
 
           <div class="flex gap-2">
 
-            <button
+            <button (click)="retryTransaction(txn)"
               class="px-4 py-2 rounded-lg bg-blue-600 text-white text-sm font-medium hover:bg-blue-700 transition">
               Retry
             </button>
 
-            <button
-              class="px-4 py-2 rounded-lg bg-red-50 text-red-600 text-sm font-medium hover:bg-red-100 transition"
-              (click)="deleteTransaction(txn.id)">
+            <button (click)="deleteTransaction(txn.id)"
+              class="px-4 py-2 rounded-lg bg-red-50 text-red-600 text-sm font-medium hover:bg-red-100 transition">
               Delete
             </button>
 
