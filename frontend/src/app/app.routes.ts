@@ -7,6 +7,7 @@ import { PaymentInitiateComponent } from './pages/payment/payment-initiate/payme
 import { PaymentCompleteComponent } from './pages/payment/payment-complete/payment-complete';
 import { TransactionHistoryComponent } from './pages/transaction-history/transaction-history';
 import { authGuard } from './guards/auth-guard';
+import { PendingTransactionsComponent } from './pages/pending-transactions/pending-transactions';
 
 export const routes: Routes = [
   
@@ -50,6 +51,12 @@ export const routes: Routes = [
     {
         path:'transactions',
         component: TransactionHistoryComponent,
+        canActivate: [authGuard]
+    },
+
+    {
+        path: 'pending-transactions',
+        component: PendingTransactionsComponent,
         canActivate: [authGuard]
     },
 

@@ -1,0 +1,96 @@
+<div class="min-h-screen bg-gray-50 p-6">
+
+  <!-- Page Header -->
+  <div class="mb-6">
+    <h2 class="text-3xl font-bold text-gray-800">
+      Pending Transactions
+    </h2>
+    <p class="text-gray-500 mt-1">
+      Transactions saved locally when payment could not be completed online.
+    </p>
+  </div>
+
+  <!-- Loading -->
+  <div *ngIf="loading"
+    class="bg-white rounded-xl shadow-sm border p-6 text-gray-500">
+    Loading pending transactions...
+  </div>
+
+  <!-- Empty State -->
+  <div *ngIf="!loading && pendingTransactions.length === 0"
+    class="bg-white rounded-xl shadow-sm border p-10 text-center">
+    <div class="text-5xl mb-3">📭</div>
+    <h3 class="text-xl font-semibold text-gray-700">
+      No pending transactions
+    </h3>
+    <p class="text-gray-500 mt-2">
+      Offline transactions will appear here.
+    </p>
+  </div>
+
+  <!-- Transaction Cards -->
+  <div class="grid gap-4">
+    <div *ngFor="let txn of pendingTransactions"
+      class="bg-white rounded-xl shadow-sm border border-gray-200 p-5 hover:shadow-md transition">
+
+      <div class="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
+
+        <!-- Left Info -->
+        <div class="space-y-2">
+
+          <div class="flex items-center gap-2">
+            <span
+              class="px-3 py-1 rounded-full text-xs font-semibold"
+              [ngClass]="{
+                'bg-yellow-100 text-yellow-700': txn.status === 'PENDING',
+                'bg-blue-100 text-blue-700': txn.status === 'SYNCING',
+                'bg-red-100 text-red-700': txn.status === 'FAILED'
+              }">
+              {{ txn.status }}
+            </span>
+
+            <span class="text-xs text-gray-400">
+              Retry: {{ txn.retryCount }}
+            </span>
+          </div>
+
+          <h3 class="text-lg font-semibold text-gray-800">
+            {{ txn.senderUpiId }} → {{ txn.receiverUpiId }}
+          </h3>
+
+          <p class="text-sm text-gray-500">
+            {{ txn.description || 'No description added' }}
+          </p>
+
+          <p class="text-xs text-gray-400">
+            Created: {{ txn.createdAt }}
+          </p>
+
+        </div>
+
+        <!-- Right Info -->
+        <div class="flex flex-col md:items-end gap-3">
+
+          <div class="text-2xl font-bold text-gray-800">
+            ₹{{ txn.amount }}
+          </div>
+
+          <div class="flex gap-2">
+
+            <button
+              class="px-4 py-2 rounded-lg bg-blue-600 text-white text-sm font-medium hover:bg-blue-700 transition">
+              Retry
+            </button>
+
+            <button
+              class="px-4 py-2 rounded-lg bg-red-50 text-red-600 text-sm font-medium hover:bg-red-100 transition"
+              (click)="deleteTransaction(txn.id)">
+              Delete
+            </button>
+
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>

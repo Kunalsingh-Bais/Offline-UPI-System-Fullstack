@@ -3,6 +3,7 @@ import { UserService } from '../../services/user';
 import { TransactionService } from '../../services/transaction';
 import { Router, RouterModule } from '@angular/router';
 import { CommonModule } from '@angular/common';
+import { IndexedDbService } from '../../services/indexed-db';
 
 @Component({
   selector: 'app-dashboard',
@@ -24,11 +25,25 @@ export class DashboardComponent implements OnInit{
   recentTransactions: any[] = [];    // last 5 transactions
   errorMessage = '';
 
-  constructor(private userService: UserService, private transactionService: TransactionService, private router: Router, private cdr: ChangeDetectorRef) {}
+  constructor(private userService: UserService, private transactionService: TransactionService, private router: Router, private cdr: ChangeDetectorRef, private indexedDbService: IndexedDbService) {}
 
-  ngOnInit(): void {
+   async ngOnInit(): Promise<void> {
     console.log('DashboardComponent initialized');
 
+   /* await this.indexedDbService.openDb();
+    await this.indexedDbService.savePendingTransaction({
+    transactionId: 'TEST_' + Date.now(),
+    senderUpiId: 'kunal@upi',
+    receiverUpiId: 'raj@upi',
+    amount: 100,
+    description: 'Test offline transaction',
+    status: 'PENDING',
+    createdAt: new Date().toISOString(),
+    retryCount: 0
+  }); */
+
+    const transactions = await this.indexedDbService.getAllPendingTransactions();
+    console.log(transactions)
     this.loadUserInfo();
     this.loadWalletBalance();
     this.loadRecentTransactions();
