@@ -1,95 +1,133 @@
-<div class="min-h-screen bg-gray-50 p-6">
+<div class="container mx-auto px-4 py-8">
 
   <!-- Page Header -->
-  <div class="mb-6">
-    <h2 class="text-3xl font-bold text-gray-800">
-      Pending Transactions
+  <div class="flex justify-between items-center mb-6">
+    <h2 class="text-3xl font-bold text-gray-900">
+      📋 Pending Transactions
     </h2>
-    <p class="text-gray-500 mt-1">
-      Transactions saved locally when payment could not be completed online.
-    </p>
+
+    <!-- SYNC All button -->
+    <button (click)="syncAllTransactions()" [disabled]="isRetrying || pendingTransactions.length === 0" class="px-6 py-2 rounded-lg 
+      font-semibold text-white transition {{ isRetrying ? 'bg-gray-400 cursor-not-allowed' : 'bg-blue-500 hover:bg-blue-600' }}">
+      {{ isRetrying ? '⏳ Syncing...' : '🔄 Sync All'}}
+    </button>
+  </div>  
+
+  <!-- Info message -->
+  <div class="bg-yellow-50 border-2 border-yellow-400 text-yellow-800 px-4 py-3 rounded-lg mb-6"> 
+    📴<strong>Offline Mode:</strong> These transactions failed to send. Click "Retry Now" or "Sync All" to retry when online.
   </div>
 
-  <!-- Loading -->
-  <div *ngIf="loading"
-    class="bg-white rounded-xl shadow-sm border p-6 text-gray-500">
-    Loading pending transactions...
+  <!-- Loading state -->
+  <div *ngIf="loading" class="text-center py-12">
+    <p class="text-gray-500">⏳ Loading pending transactions...</p>
   </div>
 
-  <!-- Empty State -->
-  <div *ngIf="!loading && pendingTransactions.length === 0"
-    class="bg-white rounded-xl shadow-sm border p-10 text-center">
-    <div class="text-5xl mb-3">📭</div>
-    <h3 class="text-xl font-semibold text-gray-700">
-      No pending transactions
-    </h3>
-    <p class="text-gray-500 mt-2">
-      Offline transactions will appear here.
-    </p>
+  <!-- Empty state -->
+  <div *ngIf="!loading && pendingTransactions.length === 0" class="text-center py-12">
+    <p class="text-gray-600 text-lg">✅ No pending transactions</p>
+    <p class="text-gray-400 text-sm mt-2">All your payments have been synced successfully!</p>
   </div>
 
-  <!-- Transaction Cards -->
-  <div class="grid gap-4">
-    <div *ngFor="let txn of pendingTransactions"
-      class="bg-white rounded-xl shadow-sm border border-gray-200 p-5 hover:shadow-md transition">
+  <!------ Pending Transaction List ------>
+  <div *ngIf="!loading && pendingTransactions.length > 0" class="space-y-4">
+    <div *ngFor="let txn of pendingTransactions" [ngClass]="{
+      'bg-yellow-50 border-yellow-300': txn.status === 'PENDING',
+      'bg-blue-50 border-blue-300': txn.status === 'SYNCING',
+      'bg-red-50 border-red-300': txn.status === 'FAILED'
+    }"
+    class="border-2 rounded-lg p-6 shadow-md">
+    
+    <!-- Transaction Header -->
+    <div class="grid grid-cols md:grid-cols-3 gap-4 mb-4">
+      <!-- Left: Transaction Info -->
+      <div>
+        <p class="text-xs text-gray-500 font-semibold uppercase">Transaction ID</p>
+        <p class="text-sm font-mono text-gray-900 break-all">{{txn.transactionId}}</p>
 
-      <div class="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
+        <p class="text-xs text-gray-500 font-semibold uppercase mt-3">From</p>
+        <p class="text-sm text-gray-900">{{txn.senderUpiId}}</p>
 
-        <!-- Left Info -->
-        <div class="space-y-2">
-
-          <div class="flex items-center gap-2">
-            <span
-              class="px-3 py-1 rounded-full text-xs font-semibold"
-              [ngClass]="{
-                'bg-yellow-100 text-yellow-700': txn.status === 'PENDING',
-                'bg-blue-100 text-blue-700': txn.status === 'SYNCING',
-                'bg-red-100 text-red-700': txn.status === 'FAILED'
-              }">
-              {{ txn.status }}
-            </span>
-
-            <span class="text-xs text-gray-400">
-              Retry: {{ txn.retryCount }}
-            </span>
-          </div>
-
-          <h3 class="text-lg font-semibold text-gray-800">
-            {{ txn.senderUpiId }} → {{ txn.receiverUpiId }}
-          </h3>
-
-          <p class="text-sm text-gray-500">
-            {{ txn.description || 'No description added' }}
-          </p>
-
-          <p class="text-xs text-gray-400">
-            Created: {{ txn.createdAt }}
-          </p>
-
-        </div>
-
-        <!-- Right Info -->
-        <div class="flex flex-col md:items-end gap-3">
-
-          <div class="text-2xl font-bold text-gray-800">
-            ₹{{ txn.amount }}
-          </div>
-
-          <div class="flex gap-2">
-
-            <button (click)="retryTransaction(txn)"
-              class="px-4 py-2 rounded-lg bg-blue-600 text-white text-sm font-medium hover:bg-blue-700 transition">
-              Retry
-            </button>
-
-            <button (click)="deleteTransaction(txn.id)"
-              class="px-4 py-2 rounded-lg bg-red-50 text-red-600 text-sm font-medium hover:bg-red-100 transition">
-              Delete
-            </button>
-
-          </div>
-        </div>
+        <p class="text-xs text-gray-500 font-semibold uppercase mt-3">To</p>
+        <p class="text-sm text-gray-900">{{txn.receiverUpiId}}</p>
       </div>
+
+      <!-- Middle: Amount & Status -->
+      <div>
+        <p class="text-xs text-gray-500 font-semibold uppercase">Amount</p>
+        <p class="text-2xl font-bold text-gray-900">{{ formatCurrency(txn.amount) }}</p>
+
+        <p class="text-xs text-gray-500 font-semibold uppercase mt-3">Status</p>
+        <span [ngClass]="{
+          'bg-yellow-200 text-yellow-800': txn.status === 'PENDING',
+          'bg-blue-200 text-blue-800': txn.status === 'SYNCING',
+          'bg-red-200 text-red-800': txn.status === 'FAILED'
+        }"
+        class="inline-block px-3 py-1 rounded-full text-xs font-semibold">
+          {{ txn.status }}
+        </span>
+      </div>
+
+      <!-- Right: Retry Count & Timestamp -->
+      <div class="md:col-span-1 col-span-2">
+        <p class="text-xs text-gray-500 font-semibold uppercase">Retry count</p>
+        <p class="text-lg font-bold text-gray-900">{{ txn.retryCount }}/5</p>
+
+        <p class="text-xs text-gray-500 font-semibold uppercase mt-3">Created At</p>
+        <p class="text-xs text-gray-600">{{ formatDate(txn.createdAt )}}</p>
+      </div>
+    </div>
+
+    <!-- Description -->
+    <div class="bg-white bg-opacity-50 p-3 rounded mb-4 text-sm">
+      <p class="text-gray-700">
+        <strong> Note: </strong> {{ txn.description || '(No description)' }}
+      </p>
+    </div>
+
+    <div class="flex gap-3">
+      <button (click)="retryTransaction(txn)" 
+        [disabled]="isRetrying || txn.retryCount >=5" [ngClass]="{'opacity-50 cursor-not-allowed': isRetrying || txn.retryCount >=5 }"
+        class="flex-1 px-4 py-2 rounded-lg font-semibold text-white transition
+          {{retryingTransactionId === txn.transactionId ? 'bg-blue-600' : 'bg-green-500 hover:bg-green-600' }}
+          {{(isRetrying && retryingTransactionId !== txn.transactionId) ? 'opacity-50' : ''}}">
+
+        {{ retryingTransactionId === txn.transactionId ? '⏳ Retrying...' : '🔄 Retry Now'}}
+      </button>
+
+      <button (click)="deleteTransaction(txn.id)" [disabled]="isRetrying"
+        class="flex-1 px-4 py-2 rounded-lg font-semibold text-white transition bg-red-500 hover:bg-red-600 disabled:bg-gray-400 disabled:cursor-not-allowed">
+        Delete
+      </button>
+    </div>
+
+    <div *ngIf="txn.retryCount >= 5" class="mt-3 p-3 bg-red-100 rounded text-red-800 text-sm">
+      ⚠️ Maximum retry (5) reached. Please contact support if problem persists.
+    </div>
+  </div>
+
+  <div *ngIf="!loading && pendingTransactions.length > 0" class="mt-8 grid grid-cols-2 md:grid-cols-4 gap-4">
+
+    <div class="bg-gray-100 p-4 rounded-lg text-center">
+      <p class="text-gray-600 text-xs font-semibold uppercase"> Total Pending</p>
+      <p class="text-2xl font-bold text-gray-900"> {{pendingTransactions.length}} </p>
+    </div>
+
+    <div class="bg-yellow-100 p-4 rounded-lg text-center">
+      <p class="text-gray-600 text-xs font-semibold uppercase"> 
+        Pending (Status)
+      </p>
+      <p class="text-2xl font-bold text-yellow-900"> {{ getPendingCount()}} </p>
+    </div>
+
+    <div class="bg-red-100 p-4 rounded-lg text-center">
+      <p class="text-gray-600 text-xs font-semibold uppercase"> Failed (Status)</p>
+      <p class="text-2xl font-bold text-red-900"> {{ getFailedCount() }} </p>
+    </div>
+
+    <div class="bg-blue-100 p-4 rounded-lg text-center">
+      <p class="text-gray-600 text-xs font-semibold uppercase"> Total Amount</p>
+      <p class="text-2xl font-bold text-blue-900"> {{formatCurrency(getTotalAmount())}} </p>
     </div>
   </div>
 </div>
