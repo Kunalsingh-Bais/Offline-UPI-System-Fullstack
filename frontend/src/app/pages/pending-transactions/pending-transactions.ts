@@ -3,6 +3,7 @@ import { ChangeDetectorRef, Component, OnInit } from '@angular/core';
 import { IndexedDbService, PendingTransaction } from '../../services/indexed-db';
 import { TransactionService } from '../../services/transaction';
 import { Router } from '@angular/router';
+import { firstValueFrom } from 'rxjs';
 
 @Component({
   selector: 'app-pending-transactions',
@@ -19,6 +20,12 @@ export class PendingTransactionsComponent implements OnInit{
   loading = false;
   isRetrying = false;
   retryingTransactionId: string | null = null;
+
+  // Notification system
+  notification: {
+    type: 'processing' | 'success' | 'error';
+    message: string;
+  } | null = null;
 
   constructor(private indexedDbService: IndexedDbService, private cdr: ChangeDetectorRef, private transactionService: TransactionService, private router: Router) {}
 
@@ -85,77 +92,123 @@ export class PendingTransactionsComponent implements OnInit{
       return;
     }
 
+    // Step 1: Show processing state 
     this.isRetrying = true;
     this.retryingTransactionId = txn.transactionId;
-      this.cdr.detectChanges();
+    this.cdr.detectChanges();
+
+    this.showNotification('processing', `Processing payment for ₹${txn.amount}...`)
 
     console.log('Starting retry for: ', txn.transactionId);
+    
+    try {
+      // Step 2: Update status to SYNCING
+      txn.status = 'SYNCING';
+      txn.retryCount = txn.retryCount + 1;
 
-    txn.status = 'SYNCING';
-    txn.retryCount = txn.retryCount + 1;
+      await this.indexedDbService.updatePendingTransaction(txn);
+      console.log('Updated to SYNCING, retry count: ', txn.retryCount);
+      this.cdr.detectChanges();
 
-    await this.indexedDbService.updatePendingTransaction(txn);
+      // Step 3: Prepare request
+      const request = {
+        transactionId: txn.transactionId,
+        encryptedData: txn.encryptedData
+      };
 
-    const request = {
-      transactionId: txn.transactionId,
-      encryptedData: txn.encryptedData
-    };
+      console.log('Sending to backend...');
 
-    this.transactionService.completeTransaction(request).subscribe({
-      next: async (response: any) => {
-        if (response.success) {
-          await this.indexedDbService.deletePendingTransaction(txn.id!);
+      // Step 4: Send to backend
+      const response = await firstValueFrom(this.transactionService.completeTransaction(request));
 
-          this.showAlert(
-            'success',
-            `Transaction ${txn.transactionId} synced successfully!`
-          );
-        } else {
-          txn.status = 'FAILED';
-          await this.indexedDbService.updatePendingTransaction(txn);
+      console.log('Backend response received: ', response);
 
-          this.showAlert(
-            'error',
-            `Server rejected transaction. Retry count: ${txn.retryCount}`
-          );
-        }
+      // Step 5: Check response
+      if(response && response.success) {
+        console.log('SUCCESS: Backend confirmed transaction');
 
-        await this.loadPendingTransactions();
+        await this.indexedDbService.deletePendingTransaction(txn.id);
+        console.log('Deleted from IndexedDB');
 
-        this.isRetrying = false;
-        this.retryingTransactionId = null;
-        this.cdr.detectChanges();
-      },
+        this.showNotification('success', `✅ Payment Successful! \n\n Transaction: ${txn.transactionId}\n Amount: ₹${txn.amount}\n\n Transaction moved to history.`);
 
-      error: async (error) => {
-        console.error('Retry failed:', error);
+        await this.delay(2000);
+      }
+      else {
+        console.log('FAILED: Backend returned failed status');
 
         txn.status = 'FAILED';
         await this.indexedDbService.updatePendingTransaction(txn);
 
-        const errorMsg =
-          error?.error?.message ||
-          error?.message ||
-          'Backend unavailable';
+        this.showNotification('error', `❌ Payment Failed\n\n Server rejected the transaction. \n\n Retry count: ${txn.retryCount}/5`);
 
-        this.showAlert(
-          'error',
-          `Retry failed: ${errorMsg}. Retry count: ${txn.retryCount}`
-        );
-
-        await this.loadPendingTransactions();
-
-        this.isRetrying = false;
-        this.retryingTransactionId = null;
-        this.cdr.detectChanges();
+        await this.delay(2000);
       }
-    });
+    }
+    catch (error: any) {
+      console.log('❌ CATCH BLOCK: Error occurred');
+      console.log('Error status: ', error?.status);
+      console.log('Error message: ', error?.message);
+
+      txn.status = 'FAILED';
+
+      await this.indexedDbService.updatePendingTransaction(txn);
+
+      let errorMsg = 'Unknown error';
+
+      if(error?.status === 503) {
+        errorMsg = 'Backend service unavailable. \n Please try again later.';
+      }
+      else if(error?.status === 0) {
+        errorMsg = 'Network error.\n Check if backend is reachable.';
+      }
+      else if(error?.error?.message) {
+        errorMsg = error.error.message;
+      }
+      else if(error?.message) {
+        errorMsg = error.message;
+      }
+
+      this.showNotification('error', `❌ Retry Failed\n\n ${errorMsg}\n\n Retry count: ${txn.retryCount}/5`);
+
+      await this.delay(2000);
+    }
+    finally {
+      // Step 6: Reset UI flags
+      this.isRetrying = false;
+      this.retryingTransactionId = null;
+      this.cdr.detectChanges();
+
+      // Step 7: Reload List
+      await this.loadPendingTransactions();
+
+      // Clear notification
+      this.notification = null;
+      this.cdr.detectChanges();
+    }
   }
 
-// ------ Method 4: Retry All Pending Transactions ------  
+// ------ Method 4: Show Notification system ------
+  private showNotification(type: 'processing' | 'success' | 'error' | 'info', message: string): void {
+    
+    console.log(`[${type.toUpperCase()}] ${message}`);
+
+    this.notification = { type: type as any, message};
+    this.cdr.detectChanges();
+
+    // Auto-hide after 5 seconds (except processing)
+    if (type !== 'processing') {
+      setTimeout(() => {
+        this.notification = null;
+        this.cdr.detectChanges();
+      }, 5000);
+    }
+  }  
+
+// ------ Method 5: Retry All Pending Transactions ------  
   async syncAllTransactions(): Promise<void> {
     if (this.pendingTransactions.length === 0) {
-      this.showAlert('info', 'No pending transactions to sync');
+      this.showNotification('info', 'No pending transactions to sync');
       return;
     }
 
@@ -175,6 +228,8 @@ export class PendingTransactionsComponent implements OnInit{
     this.isRetrying = true;
     this.cdr.detectChanges();
 
+    this.showNotification('processing', `⏳ Syncing ${this.pendingTransactions.length} transactions...`);
+
     console.log('Starting sync of All Transactions...');
 
     let successCount = 0;
@@ -182,70 +237,76 @@ export class PendingTransactionsComponent implements OnInit{
     const transactionsToDelete: number[] = [];
 
     // Step 2: Process each transaction
-    for (const txn of this.pendingTransactions) {
+    for (let i = 0; i < this.pendingTransactions.length; i++) {
+      const txn = this.pendingTransactions[i];
       if (!txn.id) continue;
 
-      try {
-        // Mark as SYNCING
-        txn.status = 'SYNCING';
-        txn.retryCount = txn.retryCount + 1;
+      console.log(`⏳ Syncing ${i + 1}/${this.pendingTransactions.length}: ${txn.transactionId}`);
+      this.showNotification('processing', 
+      `⏳ Syncing (${i + 1}/${this.pendingTransactions.length})...\n${txn.transactionId}\n₹${txn.amount}`
+    );
+
+    try {
+      // Mark as SYNCING
+      txn.status = 'SYNCING';
+      txn.retryCount = txn.retryCount + 1;
         
-        await this.indexedDbService.updatePendingTransaction(txn);
-        console.log(`Syncing ${txn.transactionId}...`);
+      await this.indexedDbService.updatePendingTransaction(txn);
+      console.log(`Syncing ${txn.transactionId}...`);
 
-        // Send to backend
-        const request = {
-          encryptedData: txn.encryptedData,
-          transactionId: txn.transactionId
-        };
+      // Send to backend
+      const request = {
+      encryptedData: txn.encryptedData,
+      transactionId: txn.transactionId
+      };
         
-        this.transactionService.completeTransaction(request).subscribe({
-          next: async (response) => {
-            // Check response
-            if (response.success) {
-              console.log(`${txn.transactionId} synced`);
-              successCount++;
+      this.transactionService.completeTransaction(request).subscribe({
+        next: async (response) => {
+          // Check response
+          if (response.success) {
+            console.log(`${txn.transactionId} synced`);
+            successCount++;
 
-              await this.indexedDbService.deletePendingTransaction(txn.id!);
-            }
-            else {
-              console.log(`${txn.transactionId} failed at backend`);
-
-              failureCount++;
-              txn.status = 'FAILED';
-
-              await this.indexedDbService.updatePendingTransaction(txn);
-            }
+            await this.indexedDbService.deletePendingTransaction(txn.id!);
           }
-        });
-      }
-      catch (error) {
-        console.warn(`${txn.transactionId} error:`, error);
-        failureCount++;
-        txn.status = 'FAILED';
+          else {
+            console.log(`${txn.transactionId} failed at backend`);
 
-        await this.indexedDbService.updatePendingTransaction(txn);
-      }
+            failureCount++;
+            txn.status = 'FAILED';
+
+            await this.indexedDbService.updatePendingTransaction(txn);
+          }
+        }
+      });
     }
+    catch (error) {
+      console.warn(`${txn.transactionId} error:`, error);
+      failureCount++;
+      txn.status = 'FAILED';
 
-    // Step 3: Delete successfully synced transactions
-    console.log(`Deleting ${transactionsToDelete.length} successful transactions...`);
-
-    for (const id of transactionsToDelete) {
-      await this.indexedDbService.deletePendingTransaction(id);
+      await this.indexedDbService.updatePendingTransaction(txn);
     }
-
-    // Step 4: Reset UI flags
-    this.isRetrying = false;
-    this.cdr.detectChanges();
-
-    // Step 5: Reload and show summary
-    await this.loadPendingTransactions();
-
-    const summary = `Sync Complete:\n Success: ${successCount}\n Failed: ${failureCount}`;
-    this.showAlert('info', summary);
-    console.log(summary); 
   }
+
+  // Step 3: Delete successfully synced transactions
+  console.log(`Deleting ${transactionsToDelete.length} successful transactions...`);
+
+  for (const id of transactionsToDelete) {
+    await this.indexedDbService.deletePendingTransaction(id);
+  }
+
+  // Step 4: Reset UI flags
+  this.isRetrying = false;
+  this.cdr.detectChanges();
+
+  // Step 5: Reload and show summary
+  await this.loadPendingTransactions();
+
+  const summary = `Sync Complete:\n Success: ${successCount}\n Failed: ${failureCount}`;
+  this.showNotification('success', summary);
+  console.log(summary); 
+}
 
 // ------ Helper Method 1: Show Alert/Toast ------  
   private showAlert(type: 'success' | 'error' | 'info', message: string): void{
@@ -291,7 +352,12 @@ export class PendingTransactionsComponent implements OnInit{
     });
   } 
 
-// ------ Helper Method 6: Get Count by status ------
+// ------ Helper Method 6: Delay for UX ------
+  private delay(ms: number): Promise<void> {
+    return new Promise(resolve => setTimeout(resolve, ms));
+  }  
+
+// ------ Helper Method 7: Get Count by status ------
   getPendingCount(): number {
     return this.pendingTransactions.filter(txn => txn.status === 'PENDING').length;
   }  
