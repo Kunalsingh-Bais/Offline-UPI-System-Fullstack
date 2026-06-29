@@ -23,7 +23,7 @@ export class PendingTransactionsComponent implements OnInit{
 
   // Notification system
   notification: {
-    type: 'processing' | 'success' | 'error';
+    type: 'processing' | 'success' | 'error' | 'info';
     message: string;
   } | null = null;
 
@@ -100,6 +100,9 @@ export class PendingTransactionsComponent implements OnInit{
     this.showNotification('processing', `Processing payment for ₹${txn.amount}...`)
 
     console.log('Starting retry for: ', txn.transactionId);
+
+    console.log('⏳ Showing processing spinner...');
+    await this.delay(2000);
     
     try {
       // Step 2: Update status to SYNCING
@@ -132,7 +135,7 @@ export class PendingTransactionsComponent implements OnInit{
 
         this.showNotification('success', `✅ Payment Successful! \n\n Transaction: ${txn.transactionId}\n Amount: ₹${txn.amount}\n\n Transaction moved to history.`);
 
-        await this.delay(2000);
+        await this.delay(6000);
       }
       else {
         console.log('FAILED: Backend returned failed status');
@@ -142,7 +145,7 @@ export class PendingTransactionsComponent implements OnInit{
 
         this.showNotification('error', `❌ Payment Failed\n\n Server rejected the transaction. \n\n Retry count: ${txn.retryCount}/5`);
 
-        await this.delay(2000);
+        await this.delay(6000);
       }
     }
     catch (error: any) {
@@ -171,7 +174,7 @@ export class PendingTransactionsComponent implements OnInit{
 
       this.showNotification('error', `❌ Retry Failed\n\n ${errorMsg}\n\n Retry count: ${txn.retryCount}/5`);
 
-      await this.delay(2000);
+      await this.delay(6000);
     }
     finally {
       // Step 6: Reset UI flags
@@ -199,8 +202,10 @@ export class PendingTransactionsComponent implements OnInit{
     // Auto-hide after 5 seconds (except processing)
     if (type !== 'processing') {
       setTimeout(() => {
-        this.notification = null;
-        this.cdr.detectChanges();
+        if (this.notification && this.notification.type === type) {
+          this.notification = null;
+          this.cdr.detectChanges();
+        }  
       }, 5000);
     }
   }  
@@ -231,6 +236,7 @@ export class PendingTransactionsComponent implements OnInit{
     this.showNotification('processing', `⏳ Syncing ${this.pendingTransactions.length} transactions...`);
 
     console.log('Starting sync of All Transactions...');
+    await this.delay(4000);
 
     let successCount = 0;
     let failureCount = 0;
@@ -245,6 +251,8 @@ export class PendingTransactionsComponent implements OnInit{
       this.showNotification('processing', 
       `⏳ Syncing (${i + 1}/${this.pendingTransactions.length})...\n${txn.transactionId}\n₹${txn.amount}`
     );
+
+    await this.delay(4000);
 
     try {
       // Mark as SYNCING
@@ -306,6 +314,11 @@ export class PendingTransactionsComponent implements OnInit{
   const summary = `Sync Complete:\n Success: ${successCount}\n Failed: ${failureCount}`;
   this.showNotification('success', summary);
   console.log(summary); 
+
+  await this.delay(4000);
+
+  this.notification = null;
+  this.cdr.detectChanges();
 }
 
 // ------ Helper Method 1: Show Alert/Toast ------  
