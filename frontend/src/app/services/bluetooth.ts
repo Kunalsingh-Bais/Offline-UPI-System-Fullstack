@@ -122,5 +122,98 @@ export class BluetoothService {
       this.isScanning$.next(false);
     }
   }
-  
+
+// ------ Method 3: Connect to Bluetooth device ------
+  async connectToDevice(deviceId: string): Promise<void> {
+    try {
+      console.log('Connecting to device: ', deviceId);
+      this.connectionStatus$.next('connecting');
+
+      // Get the BluetoothDevice object
+      const devices = this.deviceList$.value;
+      const selectedDevice = devices.find(d => d.id === deviceId);
+
+      if (!selectedDevice) {
+        throw new Error('Device not found in list');
+      }
+
+      // Connect to GATT server
+      const device = await navigator.bluetooth?.getDevice(deviceId);
+
+      if (!device) {
+        throw new Error('Cannot access device');
+      }
+
+      // Request connection to GATT server
+      this.gattServer = await device.gatt?.connect();
+
+      if(!this.gattServer) {
+        throw new Error('Failed to get GATT server');
+      }
+
+      console.log('Connected to GATT server');
+
+      // Get our custom service
+      const service = await this.gattServer.getPrimaryService(this.SERVICE_UUID);
+      console.log('Found UPI service');
+
+      // Get data characteristic
+      this.characteristic = await service.getCharacteristic(this.CHARACTERISTIC_UUID);
+      console.log('Found data characteristic');
+
+      // Setup Notifications (receive data)
+      if(this.characteristic.properties.notify) {
+        await this.characteristic.startNotifications();
+        console.log('Started listening for notification');
+
+        // Listen for incoming data
+        this.characteristic.addEventListener('characteristicvaluechanged', (event: any) => this.onDataReceived(event)
+        );
+      }
+
+      // Update state
+      selectedDevice.connected = true;
+      this.device = selectedDevice;
+      this.connectedDevice$.next(selectedDevice);
+      this.isConnected$.next(true);
+      this.connectionStatus$.next('connected');
+
+      console.log('Successfully connected to: ', selectedDevice.name);
+    }
+    catch (error: any) {
+      console.error('Connection error: ', error);
+      this.connectionStatus$.next('error');
+      throw new Error(`Connection failed: ${error.message}`);
+    }
+  }
+
+// ------ Method 4: Disconnect from device ------
+  async disconnectDevice(): Promise<void> {
+    try {
+      console.log('Disconnecting from device...');
+
+      if (this.characteristic?.properties.notify) {
+        await this.characteristic.stopNotifications();
+        console.log('Stopped notifications');
+      }
+
+      if (this.gattServer?.connected) {
+        this.gattServer.disconnect();
+        console.log('GATT server disconnected');
+      }
+
+      if (this.device) {
+        this.device.connected = false;
+      }
+
+      this.connectedDevice$.next(null);
+      this.isConnected$.next(false);
+      this.connectionStatus$.next('disconnected');
+
+      console.log('Disconnected successfully');
+    }
+    catch (error: any) {
+      console.log('Disconnect error:', error);
+    }
+  }  
 }
