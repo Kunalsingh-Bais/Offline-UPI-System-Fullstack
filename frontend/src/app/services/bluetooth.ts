@@ -54,5 +54,73 @@ export class BluetoothService {
     }
   }
 
+// ------ Method 2: Scan for nearby Bluetooth devices ------
+  async scanForDevices(): Promise<BluetoothDevice[]> {
+    if (!navigator.bluetooth) {
+      throw new Error('Bluetooth not supported');
+    }
 
+    try {
+      this.isScanning$.next(true);
+      console.log('Starting device scan...');
+
+      // Request device from user
+      const device = await navigator.bluetooth.requestDevice({
+        // Filter by our custom service UUID
+        filters: [
+          {
+            services: [this.SERVICE_UUID]
+          }
+        ],
+        // Allow user to see all devices (optional)
+        optionalServices: [this.SERVICE_UUID]
+      });
+
+      console.log('Device selected: ', device.name);
+
+      // Create Device object
+      const bluetoothDevice: BluetoothDevice = {
+        id: device.id,
+        name: device.name || 'Unknown Device',
+        connected: false,
+        lastSeen: new Date()
+      };
+
+      // Update device list
+      const devices = this.deviceList$.value;
+      const existingIndex = devices.findIndex(d => d.id === bluetoothDevice.id);
+
+      if(existingIndex > -1) {
+        devices[existingIndex] = bluetoothDevice;
+      }
+      else {
+        devices.push(bluetoothDevice);
+      }
+
+      this.deviceList$.next(devices);
+      console.log('Total devices found: ', device.length);
+
+      return devices;
+    }
+    catch(error: any) {
+      console.error('Scan error: ', error);
+
+      // User cancelled or error occurred
+      if(error.name === 'NotFoundError') {
+        console.warn('No compatible device found');
+      }
+      else if(error.name === 'NotAllowedError') {
+        console.warn('User cancelled device selection');
+      }
+      else {
+        throw error;
+      }
+
+      return [];
+    }
+    finally {
+      this.isScanning$.next(false);
+    }
+  }
+  
 }
