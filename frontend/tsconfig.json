@@ -15,6 +15,12 @@
     "target": "ES2022",
     "module": "preserve"
   },
+  "lib": [
+    "ES2020",
+    "dom",
+    "dom.iterable",
+    "webworker"
+  ],
   "angularCompilerOptions": {
     "enableI18nLegacyMessageIdFormat": false,
     "strictInjectionParameters": true,

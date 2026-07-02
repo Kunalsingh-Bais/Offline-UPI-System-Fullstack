@@ -1,5 +1,7 @@
 import { Injectable } from '@angular/core';
-import { BehaviorSubject } from 'rxjs';
+import { BehaviorSubject, Observable, timestamp } from 'rxjs';
+import { errorContext } from 'rxjs/internal/util/errorContext';
+import { __await } from 'tslib';
 
 export interface BluetoothDevice {
   id: string;
@@ -23,7 +25,7 @@ export class BluetoothService {
 
   // Properties:
   private device: BluetoothDevice | null = null;
-  private gattServer: BluetoothRemoteGATTServer | null = null;
+  private gattServer: BluetoothRemoteGATTServer | null | undefined = null;
   private characteristic: BluetoothRemoteGATTCharacteristic | null = null;
 
   // Observables:
@@ -98,7 +100,7 @@ export class BluetoothService {
       }
 
       this.deviceList$.next(devices);
-      console.log('Total devices found: ', device.length);
+      console.log('Total devices found: ', devices.length);
 
       return devices;
     }
@@ -138,14 +140,19 @@ export class BluetoothService {
       }
 
       // Connect to GATT server
-      const device = await navigator.bluetooth?.getDevice(deviceId);
+      const BluetoothDevices = await navigator.bluetooth?.getDevices();
+      const device = BluetoothDevices.find(d => d.id === deviceId);
 
       if (!device) {
         throw new Error('Cannot access device');
       }
 
+      if (!device.gatt) {
+        throw new Error('GATT not supported on this device');
+      }
+      
       // Request connection to GATT server
-      this.gattServer = await device.gatt?.connect();
+      this.gattServer = await device.gatt.connect();
 
       if(!this.gattServer) {
         throw new Error('Failed to get GATT server');
@@ -192,16 +199,19 @@ export class BluetoothService {
     try {
       console.log('Disconnecting from device...');
 
+      // Stop listening for notifications
       if (this.characteristic?.properties.notify) {
         await this.characteristic.stopNotifications();
         console.log('Stopped notifications');
       }
 
+      // Disconnect GATT
       if (this.gattServer?.connected) {
         this.gattServer.disconnect();
         console.log('GATT server disconnected');
       }
 
+      // Update state
       if (this.device) {
         this.device.connected = false;
       }
@@ -216,4 +226,188 @@ export class BluetoothService {
       console.log('Disconnect error:', error);
     }
   }  
+
+// ------ Method 5: Send Encrypted Payment Data Via BLE ------
+  async sendPaymentData(encryptedData: string): Promise<void> {
+    if (!this.characteristic) {
+      throw new Error('Not connected to device');
+    }
+
+    try {
+      console.log('Sending encrypted payment data...');
+
+      // Step 1: Create BLE Payload
+      const payload: BLEPayload = {
+        type: 'PAYMENT_REQUEST',
+        data: encryptedData,   // Already encrypted by encryption service
+        timestamp: Date.now(),
+        deviceId: this.device?.id || 'unknown'
+      };
+ 
+      // Step 2: Convert to JSON
+      const jsonPayload = JSON.stringify(payload);
+      console.log('Payload size: ', jsonPayload.length, 'bytes');
+
+      // Step 3: Handle large payloads (chuck if needed)
+      if (jsonPayload.length > this.REQUEST_MTU) {
+        console.warn('Payload too large, chunking into parts');
+        await this.sendChunkedData(jsonPayload);
+      }
+      else {
+        // Step 4: Convert string to Uint8Array
+        const encoder = new TextEncoder();
+        const data = encoder.encode(jsonPayload);
+
+        // Step 5: Send via characteristic
+        if (this.characteristic.properties.write) {
+          await this.characteristic.writeValue(data);
+          console.log('Payment data sent successfully');
+        }
+        else if (this.characteristic.properties.writeWithoutResponse) {
+          await this.characteristic.writeValueWithoutResponse(data);
+          console.log('Payment data sent (no response)');
+        }
+        else {
+          throw new Error('Characteristic does not support write');
+        }
+      }
+    }
+    catch(error: any) {
+      console.error('Send error:', error);
+      throw new Error(`Failed to send data: ${error.message}`);
+    }
+  }
+
+// ------ Method 6: Handle Chunked Data ------
+  // Split data into chunks and send sequentially
+  private async sendChunkedData(data: string): Promise<void> {
+    const chunkSize = 450;  // Leave room for metaData
+    const chunks = [];
+
+    for (let i=0;i<data.length; i+= chunkSize) {
+      chunks.push(data.substring(i, i + chunkSize));
+    }
+
+    console.log(`Sending ${chunks.length} chunks...`);
+
+    for (let i=0; i<chunks.length; i++){
+      const chunk = chunks[i];
+      const encoder = new TextEncoder();
+      const chunkData = encoder.encode(chunk);
+
+      if(this.characteristic?.properties.write) {
+        await this.characteristic.writeValue(chunkData);
+      }
+      else {
+        await this.characteristic?.writeValueWithoutResponse(chunkData);
+      }
+
+      console.log(`Chunk ${i+1}/ ${chunks.length} sent`);
+
+      // Small delay between chunks to prevent buffer overflow
+      await new Promise(resolve => setTimeout(resolve, 100));
+    }
+    console.log('All chunks sent');
+  }  
+
+// ------ Method 7: Receive Data via BLE notifications ------
+  private onDataReceived(event: any): void {
+    try {
+      console.log('Data received from device');
+
+      // Step 1: Get the value
+      const value = event.target.value;
+
+      // Step 2: Convert Uint8Array to string
+      const decoder = new TextDecoder('utf-8');
+      const jsonString = decoder.decode(value);
+
+      // Step 3: Parse JSON
+      const payload: BLEPayload = JSON.parse(jsonString);
+
+      console.log('Received: ', payload.type);
+      console.log('Data length: ', payload.data.length);
+
+      // Update observable so component can react
+      this.receivedData$.next(payload);
+    }
+    catch(error: any) {
+      console.error('Error processing received data:', error);
+    }
+  }
+
+// ------ Method 8: Send payment Acknowledgment ------
+  // After receiving payment, send ACK back to sender
+  async sendAcknowledgment(success: boolean, message: string): Promise<void> {
+    if (!this.characteristic) {
+      throw new Error('Not connected');
+    }
+    
+    try {
+      const payload: BLEPayload = {
+        type: 'PAYMENT_ACK',
+        data: JSON.stringify({
+          success,
+          message,
+          timestamp: Date.now()
+        }),
+        timestamp: Date.now(),
+        deviceId: this.device?.id || 'unknown'
+      };
+
+      const jsonPayload = JSON.stringify(payload);
+      const encoder = new TextEncoder();
+      const data = encoder.encode(jsonPayload);
+
+      if(this.characteristic.properties.write) {
+        await this.characteristic.writeValue(data);
+      }
+      else {
+        await this.characteristic.writeValueWithoutResponse(data);
+      }
+
+      console.log('Acknowledgment sent');
+    }
+    catch(error: any) {
+      console.error('Ack error: ', error);
+    }
+  }  
+
+
+// ------ OBSERVABLES for components ------
+  getDeviceList(): Observable<BluetoothDevice[]> {
+    return this.deviceList$.asObservable();
+  }  
+
+  getConnectedDevice(): Observable<BluetoothDevice | null> {
+    return this.connectedDevice$.asObservable();
+  }
+
+  getIsScanning(): Observable<boolean> {
+    return this.isScanning$.asObservable();
+  }
+
+  getIsConnected(): Observable<boolean> {
+    return this.isConnected$.asObservable();
+  }
+
+  getReceivedData(): Observable<BLEPayload | null> {
+    return this.receivedData$.asObservable();
+  }
+
+  getConnectionStatus(): Observable<string> {
+    return this.connectionStatus$.asObservable();
+  }
+
+  getDeviceListValue(): BluetoothDevice[] {
+    return this.deviceList$.value;
+  }
+
+  getConnectDeviceValue(): BluetoothDevice | null {
+    return this.connectedDevice$.value;
+  }
+
+  getIsConnectedValue(): boolean {
+    return this.isConnected$.value;
+  }
 }
