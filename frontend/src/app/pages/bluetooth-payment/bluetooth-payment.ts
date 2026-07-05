@@ -123,5 +123,87 @@ export class BluetoothPaymentComponent implements OnInit, OnDestroy {
       });  
   }
 
+// ------ Page 1: Home/Menu ------
+  goToHome(): void {
+    this.currentPage = 'home';
+    this.resetForm();
+    this.cdr.detectChanges();
+  }  
+
+// ------ Page 2: Scan for devices ------
+  async startDeviceScan(): Promise<void> {
+    try {
+      this.isProcessing = true;
+      this.showNotification('info', '🔍 Scanning for nearby devices...');
+
+      const devices = await this.bluetoothService.scanForDevices();
+
+      if (devices.length === 0) {
+        this.showNotification('error', '❌ No devices found. Make sure Bluetooth is on.');
+        return;
+      }
+
+      this.currentPage = 'scan';
+      this.showNotification('success', `✅ Found ${devices.length} device(s)`);
+    }
+    catch (error: any) {
+      console.error('Scan error: ', error);
+      this.showNotification('error', `❌ Scan failed: ${error.message}`);
+    }
+    finally {
+      this.isProcessing = false;
+      this.cdr.detectChanges();
+    }
+  }  
+
+// ------ Connect to selected device ------  
+  async connectToDevice(device: BLEDevice): Promise<void> {
+    try {
+      this.isProcessing = true;
+      this.showNotification('info', `Connecting to ${device.name}...`);
+
+      await this.bluetoothService.connectToDevice(device.id);
+
+      this.showNotification('success', `✅ Connected to ${device.name}`);
+      this.connectedDevice = device;
+
+      // Move to pairing step
+      this.requiresPairing = true;
+      this.enteredPin = '';
+      this.pairingAttempts = 0;
+    }
+    catch (error: any) {
+      console.error('Connection error: ', error);
+      this.showNotification('error', `❌ Connection failed: ${error.message}`);
+    }
+    finally {
+      this.isProcessing = false;
+      this.cdr.detectChanges();
+    }
+  }
   
+// ------ Device pairing with PIN ------
+  async confirmPairingPin(): Promise<void> {
+    const VALID_PIN = '1234';  // TODO: Generate and exchange securely
+
+    if (this.enteredPin !== VALID_PIN) {
+      this.pairingAttempts++;
+      this.showNotification('error', `❌ Invalid PIN (${this.pairingAttempts}/3)`);
+
+      if (this.pairingAttempts >= 3) {
+        this.showNotification('error', '❌ Too many attempts. Disconnecting...');
+        await this.bluetoothService.disconnectDevice();
+        this.goToHome();
+      }
+
+      this.enteredPin = '';
+      return;
+    }
+
+    // PIN correct
+    this.requiresPairing = false;
+    this.showNotification('success', '✅ Device paired successfully');
+    console.log('Device pairing confirmed');
+    this.cdr.detectChanges();
+  } 
 }
