@@ -3,7 +3,7 @@ import { BehaviorSubject, Observable, timestamp } from 'rxjs';
 import { errorContext } from 'rxjs/internal/util/errorContext';
 import { __await } from 'tslib';
 
-export interface BluetoothDevice {
+export interface BLEDevice {
   id: string;
   name: string;
   rssi?: number;   // Signal strength
@@ -24,13 +24,13 @@ export interface BLEPayload {
 export class BluetoothService {
 
   // Properties:
-  private device: BluetoothDevice | null = null;
+  private device: BLEDevice | null = null;
   private gattServer: BluetoothRemoteGATTServer | null | undefined = null;
   private characteristic: BluetoothRemoteGATTCharacteristic | null = null;
 
   // Observables:
-  private deviceList$ = new BehaviorSubject<BluetoothDevice[]>([]);
-  private connectedDevice$ = new BehaviorSubject<BluetoothDevice | null>(null);
+  private deviceList$ = new BehaviorSubject<BLEDevice[]>([]);
+  private connectedDevice$ = new BehaviorSubject<BLEDevice | null>(null);
   private isScanning$ = new BehaviorSubject<boolean>(false);
   private isConnected$ = new BehaviorSubject<boolean>(false);
   private receivedData$ = new BehaviorSubject<BLEPayload | null>(null);
@@ -57,7 +57,7 @@ export class BluetoothService {
   }
 
 // ------ Method 2: Scan for nearby Bluetooth devices ------
-  async scanForDevices(): Promise<BluetoothDevice[]> {
+  async scanForDevices(): Promise<BLEDevice[]> {
     if (!navigator.bluetooth) {
       throw new Error('Bluetooth not supported');
     }
@@ -81,7 +81,7 @@ export class BluetoothService {
       console.log('Device selected: ', device.name);
 
       // Create Device object
-      const bluetoothDevice: BluetoothDevice = {
+      const bleDevice: BLEDevice = {
         id: device.id,
         name: device.name || 'Unknown Device',
         connected: false,
@@ -90,13 +90,13 @@ export class BluetoothService {
 
       // Update device list
       const devices = this.deviceList$.value;
-      const existingIndex = devices.findIndex(d => d.id === bluetoothDevice.id);
+      const existingIndex = devices.findIndex(d => d.id === bleDevice.id);
 
       if(existingIndex > -1) {
-        devices[existingIndex] = bluetoothDevice;
+        devices[existingIndex] = bleDevice;
       }
       else {
-        devices.push(bluetoothDevice);
+        devices.push(bleDevice);
       }
 
       this.deviceList$.next(devices);
@@ -375,11 +375,11 @@ export class BluetoothService {
 
 
 // ------ OBSERVABLES for components ------
-  getDeviceList(): Observable<BluetoothDevice[]> {
+  getDeviceList(): Observable<BLEDevice[]> {
     return this.deviceList$.asObservable();
   }  
 
-  getConnectedDevice(): Observable<BluetoothDevice | null> {
+  getConnectedDevice(): Observable<BLEDevice | null> {
     return this.connectedDevice$.asObservable();
   }
 
@@ -399,11 +399,11 @@ export class BluetoothService {
     return this.connectionStatus$.asObservable();
   }
 
-  getDeviceListValue(): BluetoothDevice[] {
+  getDeviceListValue(): BLEDevice[] {
     return this.deviceList$.value;
   }
 
-  getConnectDeviceValue(): BluetoothDevice | null {
+  getConnectDeviceValue(): BLEDevice | null {
     return this.connectedDevice$.value;
   }
 
