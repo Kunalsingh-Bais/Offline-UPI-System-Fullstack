@@ -332,4 +332,87 @@ export class BluetoothPaymentComponent implements OnInit, OnDestroy {
     }, 500);
   }
 
+// ------ Handle incoming payment ------ 
+  // Receiver receives payment request
+  private async handleIncomingPayment(payload: BLEPayload): Promise<void> {
+    try {
+      console.log('Processing incoming payment...');
+
+      // Store Encrypted data as it is 
+      // Backend will decrypt when syncing
+
+      this.currentPage = 'receive-payment';
+      this.receivedPaymentRequest = payload;
+
+      // Show generic message
+      this.showNotification('info', `💰 Payment Request Received\n\nFrom: ${this.connectedDevice?.name}\n\nConfirm to accept and save`);
+
+      this.cdr.detectChanges();
+    }
+    catch (error: any) {
+      console.error('Error processing payment: ', error);
+      this.showNotification('error', '❌ Failed to process payment');
+    }
+  }  
+
+// ----- Receiver Confirms payment ------
+  async confirmReceivedPayment(accept: boolean): Promise<void> {
+    if (!this.receivedPaymentRequest) return;
+
+    try {
+      this.isProcessing = true;
+
+      if(accept) {
+        console.log('Receiver accepting payment');
+
+        // Just store encrypted data (Don't decrypt)
+        const PendingTransaction: PendingTransaction = {
+          transactionId: `BLE_RCV_${Date.now()}_${Math.random().toString(36).substring(7)}`,
+          senderUpiId: 'pending-verification', // Will be filled by backend
+          receiverUpiId: 'current-user@upi', // TODO: Get from auth service
+          amount: 0,
+          description: `BLE Received from ${this.connectedDevice?.name}`,
+          encryptedData: this.receivedPaymentRequest.data, // Store encrypted as it is
+          status: 'PENDING',
+          createdAt: new Date().toISOString(),
+          retryCount: 0
+        };
+
+        await this.indexedDbService.savePendingTransaction(PendingTransaction);
+        console.log('Saved received payment (encrypted) to IndexedDB');
+
+        // Send ACK back to sender
+        await this.bluetoothService.sendAcknowledgment(true, 'Payment received and saved');
+
+        console.log('Sent confirmation to sender');
+
+        // Show generic success message
+        this.showNotification('success', `Payment Received!\n\nFrom: ${this.connectedDevice?.name}\n\nPayment saved locally.\n Will sync to backend when online. \nCheck dashboard for details.`);
+
+        if(this.currentTransaction) {
+          this.currentTransaction.status = 'confirmed';
+        }
+      }
+      else {
+        console.log('Receiver rejecting payment');
+
+        await this.bluetoothService.sendAcknowledgment(false, 'Payment rejected by receiver');
+
+        this.showNotification('error', 'Payment rejected');
+      }
+
+      // Return to home after 3 seconds
+      setTimeout(() => {
+        this.goToHome();
+      }, 3000);
+    }
+    catch (error: any) {
+      console.error('Confirmation error: ', error);
+      this.showNotification('error', `❌ Error: ${error.message}`);
+    }
+    finally {
+      this.isProcessing = false;
+      this.cdr.detectChanges();
+    }
+  }  
 }
