@@ -2,9 +2,9 @@ import { CommonModule } from '@angular/common';
 import { ChangeDetectorRef, Component, OnDestroy, OnInit } from '@angular/core';
 import { FormsModule } from '@angular/forms';
 import { BLEDevice, BLEPayload, BluetoothService } from '../../services/bluetooth';
-import { Subject, takeUntil } from 'rxjs';
+import { Subject, takeUntil, timestamp } from 'rxjs';
 import { EncryptionService } from '../../services/encryption';
-import { IndexedDbService } from '../../services/indexed-db';
+import { IndexedDbService, PendingTransaction } from '../../services/indexed-db';
 
 export interface BLETransaction {
   id?: string;
@@ -206,4 +206,130 @@ export class BluetoothPaymentComponent implements OnInit, OnDestroy {
     console.log('Device pairing confirmed');
     this.cdr.detectChanges();
   } 
+
+// ------ Page 3: Send payment ------
+  // Sender initiates payment
+  async goToSendPayment(): Promise<void> {
+    if (!this.connectedDevice) {
+      this.showNotification('error', '❌ Not connected to any device');
+      return;
+    }
+
+    this.currentPage = 'send-payment';
+    this.paymentAmount = 0;
+    this.paymentDescription = '';
+    this.cdr.detectChanges();
+  }  
+
+// ------ Send payment VIA bluetooth ------
+  async sendPaymentViaBluetooth(): Promise<void> {
+    if (!this.connectedDevice) {
+      this.showNotification('error', '❌ Device disconnected');
+      return;
+    }
+
+    if (!this.paymentAmount || this.paymentAmount <=0) {
+      this.showNotification('error', '❌ Enter valid amount');
+      return;
+    }
+
+    try {
+      this.isProcessing = true;
+      this.showNotification('info', `⏳ Processing ₹${this.paymentAmount}...`);
+
+      // Step 1: Create payment data
+      const paymentData = {
+        senderUPI: 'current-user-upi@upi',  // TODO: Get from auth service
+        receiverUPI: 'receiver-upi@upi', // Will be exchanged during pairing
+        amount: this.paymentAmount,
+        description: this.paymentDescription,
+        timestamp: Date.now(),
+        transactionHash: this.generateTransactionHash()
+      };
+
+      console.log('Payment data: ', paymentData);
+
+      // Step 2: Generate AES key
+      const aesKey = await this.encryptionService.generateAESKey();
+
+      // Step 3: Encrypt payment data
+      const encryptedData = await this.encryptionService.encryptData(aesKey,paymentData);
+
+      console.log('Payment encrypted');
+
+      // Step 4: Send via Bluetooth
+      await this.bluetoothService.sendPaymentData(encryptedData);
+      console.log('Payment sent');
+
+      // Step 5: Store as pending transaction
+      const bleTransaction: BLETransaction = {
+        role: 'sender',
+        remoteDeviceId: this.connectedDevice.id,
+        remoteDeviceName: this.connectedDevice.name,
+        amount: this.paymentAmount,
+        description: this.paymentDescription,
+        encryptedData: encryptedData,
+        status: 'sent',
+        transactionHash: paymentData.transactionHash,
+        createdAt: new Date().toISOString(),
+        direction: 'outgoing'
+      };
+
+      // Save to IndexedDB (with BLE prefix to differentiate)
+      const PendingTransaction: PendingTransaction = {
+        transactionId: `BLE_${paymentData.transactionHash}`,
+        senderUpiId: paymentData.senderUPI,
+        receiverUpiId: paymentData.receiverUPI,
+        amount: paymentData.amount,
+        description: `BLE Payment via ${this.connectedDevice.name}`,
+        encryptedData: encryptedData,
+        status: 'PENDING',
+        createdAt: new Date().toISOString(),
+        retryCount: 0
+      };
+
+      await this.indexedDbService.savePendingTransaction(PendingTransaction);
+      console.log('Saved to IndexedDB');
+
+      // Show success
+      this.currentTransaction = bleTransaction;
+      this.currentPage = 'transaction';
+      this.showNotification('success', `✅ Payment Sent!\n\nAmount: ₹${this.paymentAmount}\nTo: ${this.connectedDevice.name}\n\n Waiting for confirmation...`);
+
+      // Wait for ACK from receiver
+      this.waitForAcknowledgment();
+    }
+    catch(error: any) {
+      console.error('Send payment error: ', error);
+      this.showNotification('error', `❌ Failed to send: ${error.message}`);
+    }
+    finally {
+      this.isProcessing = false;
+      this.cdr.detectChanges();
+    }
+  }  
+
+// ------ Wait for payment acknowledgment ------
+  private waitForAcknowledgment(maxWait = 30000): void {
+    const startTime = Date.now();
+
+    const checkAck = setInterval(() => {
+      const elapsed = Date.now() - startTime;
+      
+      // Check if we received ACK
+      if (this.currentTransaction?.status === 'confirmed') {
+        clearInterval(checkAck);
+        console.log('Payment confirmed by receiver');
+        return;
+      }
+
+      // Timeout after 30 seconds
+      if (elapsed > maxWait) {
+        clearInterval(checkAck);
+        this.showNotification('error', '⏱️ No response from receiver. Payment pending.');
+        console.log('⏱️ ACK timeout');
+      }
+    }, 500);
+  }
+
 }
