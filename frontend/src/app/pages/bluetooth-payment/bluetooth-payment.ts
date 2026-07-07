@@ -415,4 +415,95 @@ export class BluetoothPaymentComponent implements OnInit, OnDestroy {
       this.cdr.detectChanges();
     }
   }  
+
+// ------ Handle Acknowledgment ------
+  private handleAcknowledgment(payload: BLEPayload): void {
+    try {
+      const ackData = JSON.parse(payload.data);
+
+      if(ackData.success) {
+        console.log('Payment acknowledged by receiver');
+
+        if (this.currentTransaction) {
+          this.currentTransaction.status = 'confirmed';
+        }
+
+        this.showNotification('success', '✅ Payment confirmed by receiver!');
+      }
+      else {
+        console.log('Payment rejected');
+
+        if (this.currentTransaction) {
+          this.currentTransaction.status = 'failed';
+        }
+
+        this.showNotification('error', `❌ ${ackData.message}`);
+      }
+      this.cdr.detectChanges();
+    }
+    catch (error) {
+      console.error('Error handling ACK: ', error);
+    }
+  } 
+
+// ------ Disconnect from device ------
+  async disconnectDevice(): Promise<void> {
+    try {
+      await this.bluetoothService.disconnectDevice();
+      this.connectedDevice = null;
+      this.goToHome();
+      this.showNotification('info', 'Disconnect from device');
+    }
+    catch (error: any) {
+      console.error('Disconnect error: ', error);
+    }
+  }  
+
+// ------ HELPER METHODS ------
+  
+  // ------ Generate unique transaction hash ------
+  private generateTransactionHash(): string {
+    return `BLE_${Date.now()}_${Math.random().toString(36).substring(7)}`;
+  }
+
+  // ------ Show notification message ------
+  private showNotification(type: 'success' | 'error' | 'info', message: string): void {
+    this.notification = {type, message};
+    this.cdr.detectChanges();
+
+    // Auto-hide after 4 seconds
+    if(this.notificationTimeout) {
+      clearTimeout(this.notificationTimeout);
+    }
+
+    this.notificationTimeout = setTimeout(() => {
+      this.notification = null;
+      this.cdr.detectChanges();
+    }, 4000);
+  }
+
+  // ------ Reset form fields ------
+  private resetForm(): void {
+    this.paymentAmount = 0;
+    this.paymentDescription = '';
+    this.enteredPin = '';
+    this.requiresPairing = false;
+    this.currentTransaction = null;
+    this.receivedPaymentRequest = null;
+  }
+
+  // ------ Destroy method ------
+  ngOnDestroy(): void {
+    this.destroy$.next();
+    this.destroy$.complete();
+
+    if (this.notificationTimeout) {
+      clearTimeout(this.notificationTimeout);
+    }
+
+    // Disconnect on component destroy
+    if (this.isConnected) {
+      this.bluetoothService.disconnectDevice().catch(console.error);
+    }
+  }
 }
