@@ -1,1 +1,244 @@
-<p>bluetooth-payment works!</p>
+<div class="min-h-screen bg-gradient-to-br from-blue-500 to-purple-600 p-4">
+  <div class="max-w-md mx-auto">
+    
+    <!-- Notification Toast -->
+    <div *ngIf="notification" 
+      [ngClass]="{
+        'bg-green-100 text-green-800 border-green-400': notification.type === 'success',
+        'bg-red-100 text-red-800 border-red-400': notification.type ==='error',
+        'bg-blue-100 text-blue-800 border-blue-400': notification.type === 'info'
+      }"
+      class="fixed top-4 left-4 right-4 border-2 px-6 py-4 rounded-lg  
+        shadow-lg z-50 max-w-xs">
+      {{notification.message}}    
+    </div>
+
+    <!------ HOME PAGE ------>
+    <div *ngIf="currentPage === 'home'" class="space-y-4 mt-8">
+      <div class="bg-white rounded-xl shadow-lg p-8 text-center">
+        <h1 class="text-3xl font-bold text-gray-900 mb-2">🔵 Bluetooth Payment</h1>
+        <p class="text-gray-600 mb-6">Send & receive payments via bluetooth</p>
+
+        <!-- Connection Status -->
+        <div [ngClass]="isConnected ? 'bg-green-100' : 'bg-gray-100'" 
+          class="rounded-lg p-4 mb-6">
+          <p class="text-sm text-gray-600">Status</p>
+          <p class="text-lg font-bold" [ngClass]="isConnected ? 'text-green-900' : 'text-gray-900'">
+            {{ isConnected ? '🟢 Connected' : '⚪ Disconnected' }}
+          </p>
+          <p class="text-xs text-gray-600 mt-2" *ngIf="connectedDevice">
+            Device: {{ connectedDevice.name }}
+          </p>
+        </div>
+
+        <!-- Action Buttons -->
+        <div class="space-y-3">
+          <button (click)="startDeviceScan()" [disabled]="isProcessing"  
+            class="w-full bg-blue-500 hover:bg-blue-600 disabled:bg-gray-400 text-white py-3 rounded-lg font-bold transition">
+            {{ isProcessing ? '⏳ Scanning...' : '🔍 Find Device'}}
+          </button>  
+
+          <button (click)="goToSendPayment()" [disabled]="!isConnected || 
+            isProcessing" class="w-full bg-green-500 hover:bg-green-600 disabled:bg-gray-400 text-white py-3 rounded-lg font-bold transition">
+            📤 Send Payment
+          </button>
+
+          <button (click)="disconnectDevice()" [disabled]="!isConnected || isProcessing" class="w-full bg-red-500 hover:bg-red-600 disabled:bg-gray-400 text-white py-3 rounded-lg font-bold transition">
+           🔌Disconnect
+          </button>
+        </div>
+
+        <!-- Info Box -->
+        <div class="mt-6 bg-blue-50 p-4 rounded-lg text-left text-sm text-gray-700">
+          <p class="font-bold mb-2">📋 How it works:</p>
+          <ol class="list-decimal list-inside space-y-1 text-xs">
+            <li>Click "Find Device"</li>
+            <li>Select nearby device</li>
+            <li>Enter Pin</li>
+            <li>Send or receive payment</li>
+            <li>Auto-syncs when online</li>
+          </ol>
+        </div>
+      </div>  
+    </div>
+
+    <!------ SCAN PAGE ------>
+    <div *ngIf="currentPage === 'scan'" class="space-y-4 mt-8">
+      <div class="bg-white rounded-xl shadow-xl p-6">
+        <h2 class="text-2xl font-bold text-gray-900 mb-4">📱 Available Devices</h2>
+
+        <div *ngIf="deviceList.length === 0" class="text-center py-8">
+          <p class="text-gray-600">No devices found</p>
+          <button (click)="goToHome()" class="mt-4 text-blue-500
+            hover:underline">
+            Back to Home
+          </button>
+        </div>
+
+        <div *ngIf="deviceList.length > 0" class="space-y-3">
+          <div *ngFor="let device of deviceList" class="border-2 
+            border-blue-300 rounded-lg p-4 hover:bg-blue-50 cursor-pointer transition">
+
+            <div class="flex justify-between items-start mb-2">
+              <div>
+                <p class="font-bold text-gray-900">{{ device.name }}</p>
+                <p class="text-xs text-gray-600">ID: {{ device.id }}</p>
+              </div>
+              <span class="text-2xl" *ngIf="!device.connected">📱</span>
+              <span class="text-2xl" *ngIf="device.connected">✅</span>
+            </div>
+          
+            <button (click)="connectToDevice(device)" 
+                [disabled]="isProcessing || device.connected" class="w-full 
+                bg-blue-500 hover:bg-blue-600 disabled:bg-gray-400 text-white py-2 rounded-lg text-sm font-bold transition">
+
+              {{ isProcessing ? '⏳ Connecting...' : device.connected ? '✅  Connected' : '🔗 Connect' }}
+            </button>
+          </div>
+        </div>
+
+        <button (click)="goToHome()" class="w-full mt-4 bg-gray-500 
+          hover:bg-gray-600 text-white py-2 rounded-lg font-bold transition">
+          ← Back
+        </button>
+      </div>
+
+      <!-- PIN Pairing section -->
+      <div *ngIf="isConnected && requiresPairing" class="bg-white rounded-xl shadow-xl p-6 mt-4">
+        <h3 class="text-xl font-bold text-gray-900 mb-4">🔐 Device Pairing</h3>
+
+        <p class="text-gray-700 mb-4">Enter the PIN shown on the device</p>
+
+        <input type="password" [(ngModel)]="enteredPin" 
+          placeholder="Enter PIN" maxlength="4" class="w-full border-2 border-gray-300 px-4 py-2 rounded-lg mb-4 text-center text-2xl font-bold">
+
+        <button (click)="confirmPairingPin()" [disabled]="enteredPin.length 
+          !== 4 || isProcessing" class="w-full bg-green-500 hover:bg-green-600 disabled:bg-gray-400 text-white py-2 rounded-lg font-bold transition">
+          {{ isProcessing ? '⏳ Verifying...' : '✓ Confirm PIN' }}
+        </button>
+      </div>
+    </div>
+
+    <!------ SEND PAYMENT PAGE ------>
+    <div *ngIf="currentPage === 'send-payment'" class="space-y-4 mt-8">
+      <div class="bg-white rounded-xl shadow-xl p-6">
+        <h2 class="text-2xl text-center font-bold text-gray-900 mb-4">📤 Send Payment</h2>
+
+        <p class="text-gray-600 mb-4">
+          Sending to: 
+          <span class="font-bold">
+            {{ connectedDevice?.name }}
+          </span>
+        </p>
+
+        <!-- Amount Input -->
+        <div class="mb-4">
+          <label class="block text-sm font-bold text-gray-700 mb-2">
+            Amount (₹)
+          </label>
+
+          <input type="number" [(ngModel)]="paymentAmount" placeholder="0" min="0" class="w-full border-2 border-gray-300 px-4 py-2 rounded-lg text-2xl font-bold">
+        </div>
+
+        <!-- Description Input -->
+        <div class="mb-4">
+          <label class="block text-sm font-bold text-gray-700 mb-2">
+            Discription (Optional)
+          </label>
+
+          <input type="text" [(ngModel)]="paymentDescription" placeholder="What's this payment for?" class="w-full border-2 border-gray-300 px-4 py-2 rounded-lg">
+        </div>
+
+        <!-- Preview -->
+        <div class="bg-gray-100 p-4 rounded-lg mb-4">
+          <p class="text-sm text-gray-700">
+            <strong>Preview: </strong> Send ₹{{ paymentAmount || 0 }} to {{ connectedDevice?.name }}
+          </p>
+        </div>
+
+        <!-- Send Button -->
+        <button (click)="sendPaymentViaBluetooth()" 
+          [disabled]="!paymentAmount || isProcessing" class="w-full bg-green-500 hover:bg-green-600 disabled:bg-gray-400 text-white py-3 rounded-lg font-bold transition mb-2">
+          {{ isProcessing ? '⏳ Sending...' : '✓ Send Payment' }}
+        </button>
+
+        <button (click)="goToHome()" class="w-full bg-gray-500 hover:bg-gray-600 text-white py-2 rounded-lg font-bold transition">
+          ← Cancel
+        </button>
+      </div>
+    </div>
+
+    <!------ RECEIVE PAYMENT PAGE ------>
+    <div *ngIf="currentPage === 'receive-payment'"
+      class="space-y-4 mt-8">
+      
+      <div class="bg-white rounded-xl shadow-xl p-6">
+        <h2 class="text-2xl font-bold text-gray-900 mb-4">💰 Payment Request</h2>
+
+        <div class="bg-blue-50 p-6 rounded-lg mb-6">
+          <p class="text-sm text-gray-600 mb-2">From :</p>
+          <p class="text-lg font-bold text-gray-900">{{ connectedDevice?.name || 'Unknown Device' }}</p>
+
+          <p class="text-sm text-gray-600 mt-4 mb-2">Payment Data :</p>
+          <p class="text-lg font-bold text-green-600">
+            🔐 Encrypted payment request received
+          </p>
+
+          <p class="text-xs text-gray-500 mt-2">
+            Amount and note will be verified after backend sync.
+          </p>
+        </div>
+
+        <div class="flex gap-3">
+          <button (click)="confirmReceivedPayment(true)" 
+            [disabled]="isProcessing" class="flex-1 bg-gray-500 hover:bg-green-600 disabled:bg-gray-400 text-white py-3 rounded-lg font-bold transition">
+            {{ isProcessing ? '⏳...' : '✓ Confirm'}}
+          </button>  
+
+          <button (click)="confirmReceivedPayment(false)" 
+            [disabled]="isProcessing" class="flex-1 bg-red-500 hover:bg-red-600 disabled:bg-gray-400 text-white py-3 rounded-lg font-bold transition">
+            Reject
+          </button>
+        </div>
+      </div>
+    </div>
+
+    <!------ TRANSACTION STATUS PAGE ------>
+    <div *ngIf="currentPage === 'transaction' && currentTransaction"
+      class="space-y-4 mt-8">
+      <div class="bg-white rounded-xl shadow-xl p-6">
+        <h2 class="text-2xl font-bold text-gray-900 mb-4">📊 Transaction Status</h2>
+
+        <div [ngClass]="{
+            'bg-yellow-50': currentTransaction.status === 'sent',
+            'bg-green-50': currentTransaction.status === 'confirmed',
+            'bg-red-50': currentTransaction.status === 'failed'
+          }"
+          class="p-6 rounded-lg mb-6">
+          
+        <p class="text-sm text-gray-600 mb-2">Status</p>
+        <p class="text-xl font-bold" [ngClass]="{
+            'text-yellow-900': currentTransaction.status === 'sent',
+            'text-green-900': currentTransaction.status === 'confirmed',
+            'text-red-900': currentTransaction.status === 'failed'
+          }">
+          {{ currentTransaction.status === 'sent' ? '⏳ Waiting for confirmation...': ''}}
+          {{ currentTransaction.status === 'confirmed' ? '✅ Confirmed!' : ''}}
+          {{ currentTransaction.status === 'failed' ? '❌ Failed' : ''}}
+        </p>  
+
+        <div class="mt-4 space-y-2 text-sm">
+          <p><strong>To:</strong> {{ currentTransaction.remoteDeviceName}}</p>
+          <p><strong>Amount:</strong> {{ currentTransaction.amount}}</p>
+          <p><strong>Hash:</strong> {{ currentTransaction.transactionHash}}...</p>
+          <p><strong>Time:</strong> {{ currentTransaction.createdAt | date: 'short'}}</p>
+        </div>
+        </div>
+
+        <button (click)="goToHome()" class="w-full bg-blue-500 hover:bg-blue-600 text-white py-3 rounded-lg font-bold transition">
+          ← Back to Home
+        </button>
+      </div>
+    </div>
+  </div>  
+</div>

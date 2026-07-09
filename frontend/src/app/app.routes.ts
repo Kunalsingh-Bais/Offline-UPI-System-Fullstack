@@ -8,6 +8,7 @@ import { PaymentCompleteComponent } from './pages/payment/payment-complete/payme
 import { TransactionHistoryComponent } from './pages/transaction-history/transaction-history';
 import { authGuard } from './guards/auth-guard';
 import { PendingTransactionsComponent } from './pages/pending-transactions/pending-transactions';
+import { BluetoothPaymentComponent } from './pages/bluetooth-payment/bluetooth-payment';
 
 export const routes: Routes = [
   
@@ -58,6 +59,12 @@ export const routes: Routes = [
         path: 'pending-transactions',
         component: PendingTransactionsComponent,
         canActivate: [authGuard]
+    },
+
+    {
+        path: 'bluetooth-payment',
+        component: BluetoothPaymentComponent,
+        
     },
 
   // ===== Redirects ===== 
