@@ -5,6 +5,22 @@ import { Router, RouterModule } from '@angular/router';
 import { CommonModule } from '@angular/common';
 import { IndexedDbService } from '../../services/indexed-db';
 
+// Combined transaction interface (UPI or BLE)
+export interface CombinedTransaction {
+  id: string;
+  type: 'UPI' | 'BLE';
+  fromUPI: string;
+  toUPI: string;
+  amount: number;
+  description: string;
+  timestamp: number;
+  dateTime: string;
+  status: 'pending' | 'completed' | 'failed' | 'synced';
+  synced: boolean;
+  source: 'backend' | 'indexeddb';
+  direction?: 'sent' | 'received';
+}
+
 @Component({
   selector: 'app-dashboard',
   standalone: true,
@@ -22,31 +38,31 @@ export class DashboardComponent implements OnInit{
   profileId: number | null = null;
   loadingBalance = true;
   loadingTransactions = false;
-  recentTransactions: any[] = [];    // last 5 transactions
+  recentTransactions: CombinedTransaction[] = [];    // last 5 transactions
   errorMessage = '';
+  upiTransactions: any[] = [];
+  bleTransactions: CombinedTransaction[] = [];
+  isOnline = navigator.onLine;
 
   constructor(private userService: UserService, private transactionService: TransactionService, private router: Router, private cdr: ChangeDetectorRef, private indexedDbService: IndexedDbService) {}
 
-   async ngOnInit(): Promise<void> {
+  async ngOnInit(): Promise<void> {
     console.log('DashboardComponent initialized');
 
-   /* await this.indexedDbService.openDb();
-    await this.indexedDbService.savePendingTransaction({
-    transactionId: 'TEST_' + Date.now(),
-    senderUpiId: 'kunal@upi',
-    receiverUpiId: 'raj@upi',
-    amount: 100,
-    description: 'Test offline transaction',
-    status: 'PENDING',
-    createdAt: new Date().toISOString(),
-    retryCount: 0
-  }); */
+    try {
+      await this,this.indexedDbService.openDb();
+      console.log('IndexedDB initalized');
+    }
+    catch (error) {
+      console.error('IndexedDB error: ', error);
+    }
 
-    const transactions = await this.indexedDbService.getAllPendingTransactions();
-    console.log(transactions)
     this.loadUserInfo();
     this.loadWalletBalance();
-    this.loadRecentTransactions();
+    
+    await this.loadAllTransactions();
+
+    this.setupOnlineDetection();
   }
  
 // ------ Method 1: Load user info ------
@@ -115,57 +131,193 @@ export class DashboardComponent implements OnInit{
     });
   }  
 
-// ------ Method 3: Load recent transaction ------
+// ------ Method 3: Load ALL transaction (UPI + BLE) ------
   // shows last 3 transactions history
-  private loadRecentTransactions(): void {
-    console.log('Loading transactions...');
+  private async loadAllTransactions(): Promise<void> {
+    console.log('Loading all transactions (UPI + BLE)...');
 
-    const profileIdValue = localStorage.getItem('profileId');
+    try {
+      this.loadingTransactions = true;
 
-    if (!profileIdValue) {
-      this.recentTransactions = [];
-      this.loadingTransactions = false;
-      this.errorMessage = 'Profile not found. Please login again.';
-      this.cdr.detectChanges();
-      return;
+      // Load UPI transactions from backend
+      await this.loadUPITransactions();
+
+      // Load BLE transactions from indexedDB
+      await this.loadBLETransactions();
+
+      this.mergeTransactions();
+
+      // Sort by date
+      this.sortTransactions();
+
+      // Show last 5 transactions
+      this.recentTransactions = this.recentTransactions.slice(0,5);
+
+      console.log('All transactions loaded: ', this.recentTransactions.length);
     }
-
-    const profileId = Number(profileIdValue);
-    this.loadingTransactions = true;
-
-    this.transactionService.getTransactionHistory(profileId).subscribe({
-      next: (response) => {
-        this.recentTransactions = response.slice(0, 3);
-        this.loadingTransactions = false;
-        console.log('Transaction history loaded: ', response);
-
-        this.cdr.detectChanges(); 
-      },
-
-      error: (error) => {
-        console.error('Error loading transaction history: ', error);
-        this.recentTransactions = [];
-        this.loadingTransactions = false;
-        this.errorMessage = 'Failed to load transaction history.';
-
-        this.cdr.detectChanges();
-      }
-    });
+    catch (error) {
+      console.error('Error loading transactions: ', error);
+      this.errorMessage = 'Failed to load transactions.';
+    }
+    finally {
+      this.loadingTransactions = false;
+      this.cdr.detectChanges();
+    }
   }  
 
-// ------ Method 4: Navigate to send money ------
+// ------ Method 4: Load UPI transactions from Backend ------  
+  private loadUPITransactions(): Promise<void> {
+    return new Promise((resolve) => {
+      try {
+        console.log('Fetching UPI transactions from backend...');
+
+        const profileIdValue = localStorage.getItem('profileId');
+
+        if(!profileIdValue) {
+          console.warn('No profileId, skipping UPI transactions');
+          this.upiTransactions = [];
+          resolve();
+          return;
+        }
+
+        const profileId = Number(profileIdValue);
+
+        this.transactionService.getTransactionHistory(profileId).subscribe({
+          next: (response) => {
+            console.log('UPI transactions received: ', response?.length || 0);
+
+            // Transform backend transactions to CombinedTransaction format
+            this.upiTransactions = (response || []).map((txn: any) => ({
+              id: txn.id?.toString() || 'UPI_' + Date.now(),
+              type: 'UPI' as const,
+              fromUPI: txn.senderUpiId || txn.from || 'unknown@upi',
+              toUPI: txn.receiverUpiId || txn.to || 'unknown@upi',
+              amount: txn.amount || 0,
+              description: txn.description || 'UPI Payment',
+              timestamp: new Date(txn.timestamp || txn.date).getTime(),
+              dateTime: new Date(txn.timestamp || txn.date).toLocaleString('en-IN'),
+              status: 'completed' as const,
+              synced: true,
+              source: 'backend' as const
+            }));
+
+            resolve();
+          }, 
+          error: (error) => {
+            console.error('Enter fetching UPI transactions: ', error);
+            this.upiTransactions = [];
+            resolve();
+          }
+        });
+
+        // Timeout after 5 seconds
+        setTimeout(() => {
+          resolve();
+        }, 5000);
+      }
+      catch (error) {
+        console.error('Error in loadUPITransactions: ', error);
+        resolve();
+      }
+    });
+  }
+
+// ------ Method 5: Load BLE Transactions from IndexedDB ------
+  private async loadBLETransactions(): Promise<void> {
+    try {
+      console.log('Fetching BLE transactions from IndexedDB...');
+
+      const PendingTransactions = await this.indexedDbService.getAllPendingTransactions();
+
+      console.log('Found in IndexedDB: ', PendingTransactions?.length || 0);
+
+      // Transform IndexedDB format to CombinedTransaction format
+      this.bleTransactions = (PendingTransactions || []).filter(txn => txn.transactionId.startsWith('BLE')).map(txn => ({
+        id: txn.transactionId,
+        type: 'BLE' as const,
+        fromUPI: txn.senderUpiId,
+        toUPI: txn.receiverUpiId,
+        amount: txn.amount,
+        description: txn.description || 'BLE Payment',
+        timestamp: new Date(txn.createdAt).getTime(),
+        dateTime: new Date(txn.createdAt).toLocaleString('en-IN'),
+        status: txn.status === 'PENDING' ? 'pending' : 'completed',
+        synced: txn.status !== 'PENDING',
+        source: 'indexeddb' as const,
+        direction: txn.transactionId.includes('_RCV_') ? 'received' : 'sent'
+      }));
+
+      console.log('BLE transactions loaded: ', this.bleTransactions.length);
+    }
+    catch (error) {
+      console.error('Error loading BLE transactions: ', error);
+      this.bleTransactions = [];
+    }
+  }
+   
+// ------ Method 6: Merge UPI + BLE Transactions ------
+  private mergeTransactions(): void {
+    console.log('Merging transactions...');
+    console.log('UPI: ', this.upiTransactions.length);
+    console.log('BLE: ', this.bleTransactions.length);
+
+    const merged: CombinedTransaction[] = [];
+
+    // Add UPI transactions
+    merged.push(...this.upiTransactions);
+
+    // Add BLE transactions
+    merged.push(...this.bleTransactions);
+
+    this.recentTransactions = merged;
+
+    console.log('Merged total: ', merged.length);
+  }  
+
+// ------ Method 7: Sort Transactions by Date ------
+  private sortTransactions(): void {
+    this.recentTransactions.sort((a,b) => {
+      return b.timestamp - a.timestamp;
+    });
+
+    console.log('Transactions sorted by date');
+  }  
+
+// ------ Method 8: Setup Online Detection ------
+  // Detect when device gets online/offline
+  private setupOnlineDetection(): void {
+    window.addEventListener('online', () => {
+      console.log('Connection restored');
+      this.isOnline = true;
+      this.cdr.detectChanges();
+    });
+
+    window.addEventListener('offline', () => {
+      console.log('Connection lost');
+      this.isOnline = false;
+      this.cdr.detectChanges();
+    });
+  }
+    
+// ------ Method 9: Navigate to send money ------
   goToSendMoney(): void {
     console.log('Navigating to send money...');
     this.router.navigate(['/payment/initiate']);
   }
 
-// ------ Method 5: Navigate to history ------
+// ------ Method 10: Navigate to history ------
   goToHistory(): void {
     console.log('Navigating to transaction history...');
     this.router.navigate(['/transactions']);
   }  
 
-// ------ Method 6: Format currency ------
+// ------ Method 11: Navigate to Bluetooth Payment ------
+  goToBluetoothPayment(): void {
+    console.log('Navigating to Bluetooth Payment...');
+    this.router.navigate(['/bluetooth-payment']);
+  }  
+
+// ------ Method 12: Format currency ------
   formatCurrency(amount: number | null): string {
     if(amount === null || amount === undefined) {
       return '₹0.00';
@@ -177,22 +329,25 @@ export class DashboardComponent implements OnInit{
     });
   }
 
-// ------ Method 7: Get transaction status color ------
+// ------ Method 13: Get transaction status color ------
   getStatusBadgeClass(status: string): string {
+    const normalizedStatus = status?.toUpperCase();
 
-   switch(status?.toUpperCase()) {
-     case 'SUCCESS':
-       return 'bg-green-100 text-green-800';
-     case 'PENDING':
-       return 'bg-yellow-100 text-yellow-800';
-     case 'FAILED':
-       return 'bg-red-100 text-red-800';
-     default: 
-       return 'bg-gray-100 text-gray-800';      
-   }
+    switch(normalizedStatus) {
+      case 'SUCCESS':
+      case 'COMPLETED':
+      case 'SYNCED':    
+        return 'bg-green-100 text-green-800';
+      case 'PENDING':
+        return 'bg-yellow-100 text-yellow-800';
+      case 'FAILED':
+        return 'bg-red-100 text-red-800';
+      default: 
+        return 'bg-gray-100 text-gray-800';      
+    }
   }
 
-// ------ Method 8: Get transaction icon ------
+// ------ Method 14: Get transaction icon ------
   // Get emoji icon based on transaction type
   getTransactionIcon(transaction: any): string {
    if(transaction.receiverUpiId === this.userUpiId) {
@@ -203,10 +358,44 @@ export class DashboardComponent implements OnInit{
    }
   } 
 
-// ------ Method 9: Refresh all dashboard data ------
-  refreshDashboard(): void {
+// ------ Method 15: Get Transaction Label ------
+  getTransactionLabel(transaction: CombinedTransaction): string {
+    if (transaction.type === 'UPI') {
+      const otherUPI = transaction.fromUPI === this.userUpiId ? transaction.toUPI : transaction.fromUPI;
+      const direction = transaction.fromUPI === this.userUpiId ? 'to' : 'from';
+      const name = this.extractName(otherUPI);
+      return `${direction} ${name}`;
+    }
+    else {
+      // BLE
+      const otherUPI = transaction.fromUPI === this.userUpiId ? transaction.toUPI : transaction.fromUPI;
+      const direction = transaction.direction === 'sent' ? 'to' : 'from';
+      const name = this.extractName(otherUPI);
+      return `BLE ${direction} ${name}`;
+    }
+  }
+  
+// ------ Method 16: Extract Name from UPI ------ 
+  private extractName(upi: string): string {
+    if (!upi) return 'Unknown';
+    const name = upi.split('@')[0];
+    return name.charAt(0).toUpperCase() + name.slice(1);
+  } 
+
+// ------ Method 17: Get status text ------
+  getStatusText(transaction: CombinedTransaction): string {
+    if (transaction.type === 'UPI') {
+      return 'Confirmed';
+    }
+    else {
+      return transaction.synced ? 'Synced' : 'Pending';
+    }
+  }  
+
+// ------ Method 18: Refresh all dashboard data ------
+  async refreshDashboard(): Promise<void> {
     console.log('Refreshing dashboard...');
     this.loadWalletBalance();
-    this.loadRecentTransactions();
+    await this.loadAllTransactions();
   }
 }
