@@ -43,6 +43,7 @@ export class DashboardComponent implements OnInit{
   upiTransactions: any[] = [];
   bleTransactions: CombinedTransaction[] = [];
   isOnline = navigator.onLine;
+  totalTransactions = 0;  
 
   constructor(private userService: UserService, private transactionService: TransactionService, private router: Router, private cdr: ChangeDetectorRef, private indexedDbService: IndexedDbService) {}
 
@@ -149,6 +150,9 @@ export class DashboardComponent implements OnInit{
 
       // Sort by date
       this.sortTransactions();
+
+      // Total transactions
+      this.totalTransactions = this.recentTransactions.length;
 
       // Show last 5 transactions
       this.recentTransactions = this.recentTransactions.slice(0,5);

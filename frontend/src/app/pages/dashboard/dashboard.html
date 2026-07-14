@@ -4,16 +4,30 @@
 
     <!------ Header Section ------>
     <div class="mb-8">
-      <!-- Welcome message -->  
-      <h1 class="text-4xl font-bold text-gray-900 mb-2">
-        Welcome, 
-        <span class="text-blue-600">
-          {{ userName || 'User '}}  
-        </span>
-      </h1>  
-      <p class="text-gray-600">
-        Manage your payments and view your transactions 
-      </p>
+
+      <div class="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-4">
+
+        <!-- Welcome message -->  
+        <div>
+          <h1 class="text-4xl font-bold text-gray-900 mb-2">
+            Welcome, 
+            <span class="text-blue-600">
+              {{ userName || 'User '}}  
+            </span>
+          </h1>  
+          <p class="text-gray-600">
+            Manage your payments and view your transactions 
+          </p>
+        </div>  
+
+        <div [ngClass]="isOnline ? 'bg-green-100 border-green-200' : 
+          'bg-red-100 border-red-200'" class="inline-flex items-center rounded-lg border px-4 py-2 text-sm font-semibold">
+          <span [ngClass]="isOnline ? 'text-green-800' : 'text-red-800'">
+            {{ isOnline ? '🌐 Online' : '📴 Offline'}}
+          </span>
+        </div>
+
+      </div>  
     </div>
 
     <!------ Error Message ------>
@@ -33,10 +47,11 @@
           <p class="text-gray-600 text-sm font-medium mb-2">💰 Wallet Balance  </p>
 
           <!-- Balance display -->
-          <div class="flex items-center justify-between mb-6">
-            <h2 class="text-5xl font-bold text-blue-600">
+          <div class="flex items-center justify-between gap-4 mb-6">
+            <h2 class="text-4xl sm:text-5xl font-bold text-blue-600 break-all">
+
               @if (loadingBalance && walletBalance === null) {
-                <span>Loading balance...</span>
+                <span class="text-2xl sm:text-3xl">Loading balance...</span>
               }
               
               @if (walletBalance !== null) {
@@ -50,7 +65,9 @@
 
             <!-- Refresh button -->
             <button (click)="refreshDashboard()" [disabled]="loadingBalance"
-                class="p-3 bg-blue-100 hover:bg-blue-200 text-blue-600 rounded-full transition disabled:opacity-50"> 
+                ariel-label="Refresh dashboard" title="Refresh dashboard"
+                class="shrink-0 p-3 bg-blue-100 hover:bg-blue-200 text-blue-600 rounded-full transition disabled:opacity-50
+                disabled:cursor-not-allowed"> 
               
               @if (!loadingBalance) {
                 <svg class="w-6 h-6" fill="none"  
@@ -60,7 +77,7 @@
               }
 
               @if (loadingBalance) {
-                <svg *ngIf="loadingBalance" class="w-6 h-6 animate-spin"   
+                <svg class="w-6 h-6 animate-spin"   
                      fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
                   <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
@@ -69,13 +86,23 @@
             </button>
           </div> 
 
+          <div class="rounded-lg px-4 py-3 text-sm" [ngClass]="isOnline ?
+            'bg-green-50 text-green-700' : 'bg-orange-50 text-orange-700'" >
+
+            @if (isOnline) {
+              <p>Online payments and Bluetooth payments are available.</p>
+            }
+            @else {
+              <p> You are offline. Eligible transactions will be stored locally until the connection is restored. </p>
+            }
+          </div>
         </div>
 
         <!------ Quick action button ------>
         <div class="bg-white rounded-2xl shadow-lg p-8">
           <h3 class="text-lg font-semibold text-gray-900 mb-4">⚡ Quick Actions </h3>
 
-          <div class="grid grid-cols-2 gap-4">
+          <div class="grid grid-cols-3 gap-4">
 
             <!-- Send Money button -->
             <button (click)="goToSendMoney()" class="bg-gradient-to-br 
@@ -84,6 +111,17 @@
               <div class="text-3xl mb-2">💸</div>
               <p class="font-semibold">Send Money</p>
               <p class="text-xs text-blue-100 mt-1">Transfer to UPI</p>
+            </button>
+
+            <!-- Bluetooth Payment -->
+            <button (click)="goToBluetoothPayment()"  
+              class="bg-gradient-to-br from-cyan-600 to-cyan-700 hover:from-cyan-700 hover:to-cyan-800 text-white rounded-xl p-6 transition transform hover:scale-105 shadow-md">
+              
+              <div class="text-3xl mb-2">🔵</div>
+              <p class="font-semibold">Bluetooth</p>
+              <p class="text-xs text-purple-100 mt-1">
+                Nearby P2P payment
+              </p>
             </button>
 
             <!-- View History button -->
@@ -98,11 +136,22 @@
         </div>
 
         <!------ Recent Transactions ------>
-        <div class="bg-white rounded-2xl shadow-lg p-8">
-          <h3 class="text-lg font-semibold text-gray=900 mb-4">📝 Recent Transactions</h3>
+        <div class="bg-white rounded-2xl shadow-lg p-6 sm:p-8">
+          <!-- Section Header -->
+          <div class="flex flex-col sm:flex-row sm:items-center 
+            justify-between gap-2 mb-6">
+
+            <h3 class="text-lg font-semibold text-gray-900 mb-4">📝 Recent Transactions</h3>
+
+            <button *ngIf="recentTransactions.length > 0" 
+              (click)="goToHistory()" class="text-sm font-semibold text-blue-600 hover:text-blue-800">
+              View all →
+            </button>
+
+          </div>  
 
           <!-- Loading state -->
-          <div *ngIf="loadingTransactions" class="text-center py-8">
+          <div *ngIf="loadingTransactions" class="text-center py-10">
             <div class="aniamte-spin inline-block">
               <svg class="w-8 h-8 text-blue-600" fill="none" stroke="CurrentColor" viewBox="0 0 24 24">
                 <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
@@ -111,11 +160,22 @@
                 </path>
               </svg>
             </div>
+
+            <p class="text-sm text-gray-500 mt-3">
+              Loading transactions...
+            </p>
           </div>
 
           <!-- Empty state -->
-          <div *ngIf="!loadingTransactions && recentTransactions.length === 0" class="text-center py-8">
-            <p class="text-gray-500">No transactions yet</p>
+          <div *ngIf="!loadingTransactions && recentTransactions.length === 0" class="text-center py-10 bg-gray-50 rounded-xl">
+
+            <div class="text-4xl mb-3">📭</div>
+
+            <p class="font-semibold text-gray-700">No transactions yet</p>
+            
+            <p class="text-sm text-gray-500 mt-1">
+              Your UPI and Bluetooth payments will appear here.
+            </p>
           </div>
 
           <!-- Transaction list -->
@@ -124,42 +184,105 @@
             <div *ngFor="let txn of recentTransactions" 
               class="flex items-center justify-between p-4 bg-gray-50 rounded-lg hover:bg-gray-100 transition border-l-4 border-blue-500">
 
-              <!-- Left: Icon + Details -->
-              <div class="flex items-center space-x-4">
-                <!-- Icon -->
-                <div class="text-2xl"> {{getTransactionIcon(txn)}}</div>  
+              <div class="flex justify-between items-start gap-4">
 
-                <!-- Details -->
-                <div>
-                  <p class="font-semibold text-gray-900">
-                    <span *ngIf="txn.receiverUpiId === userUpiId">
-                      Received from {{ txn.senderUpiId }}
+                <!-- Left: Icon + Details -->
+                <div class="flex gap-3 flex-1 min-w-0">
+                  <!-- Icon -->
+                  <div class="shrink-0 w-11 h-11 bg-white rounded-full 
+                    shadow-sm flex items-center justify-between"> 
+                    <span>
+                      {{getTransactionIcon(txn)}}
                     </span>
-                    <span *ngIf="txn.senderUpiId === userUpiId">
-                      Sent to {{ txn.receiverUpiId }}
+                  </div>  
+
+                <!-- Transaction Details -->
+                <div class="min-w-0">
+                  <!-- Transaction Label -->
+                  <p class="font-bold text-gray-900 break-words">
+                    {{getTransactionLabel(txn)}}
+                  </p>
+
+                  <!-- Payment Type -->
+                  <p class="text-xs text-gray-600 mt-1">
+                    <span *ngIf="txn.type === 'UPI'">
+                      💳 UPI Payment
+                    </span>
+
+                    <span *ngIf="txn.type === 'BLE'">
+                      🔵 Bluetooth P2P
+                    </span>
+
+                    <span *ngIf="!txn.type">
+                      💳 Payment
                     </span>
                   </p>
-                  <p class="text-xs text-gray-600"> {{ txn.createdAt }} </p>
+
+                  <p class="text-xs text-gray-500 mt-1">
+                    📅{{ txn.dateTime }}
+                  </p>
+
+                  <p *ngIf="txn.description" class="text-xs text-gray-600 mt-1 break-words">
+                    📝 {{ txn.description }}
+                  </p>
                 </div>
               </div>
+            
 
               <!-- Right: Amount + Status -->
-              <div class="text-right">
+              <div class="text-right ml-4 shrink-0">
                 <p class="font-semibold text-lg text-gray-900">
                   {{ formatCurrency(txn.amount) }}
                 </p>
-                <span [ngClass]="getStatusBadgeClass(txn.status)"   class="inline-block px-3 py-1 rounded-full text-xs font-semibold   mt-1"> {{ txn.status }}
+                <span [ngClass]="getStatusBadgeClass(txn.status)"
+                  class="inline-block px-3 py-1 rounded-full text-xs font-semibold  mt-2"> 
+                  {{ getStatusText(txn) }}
                 </span>
               </div>
             </div>
           </div>
         </div> 
-      </div>
 
+        <!-- Statistics Footer -->
+        <div *ngIf="!loadingTransactions && recentTransactions.length > 0"
+          class="grid grid-cols-3 gap-3 mt-6 pt-6 border-t border-gray-200">
+          
+          <!-- Total Transactions -->
+          <div class="bg-gray-300 p-3 rounded-xl text-center border border-gray-400">
+            <p class="text-xs font-semibold text-gray-600">
+              Total Transactions
+            </p>
+            <p class="text-xl font-bold text-gray-800 mt-1">
+              {{totalTransactions }}
+            </p>
+          </div>
+
+          <!-- UPI Transactions -->
+          <div class="bg-blue-200 p-4 rounded-xl text-center border border-blue-400">
+            <p class="text-xs font-semibold text-gray-600">
+              💳 UPI
+            </p>
+            <p class="text-xl font-bold text-blue-600 mt-1">
+              {{ upiTransactions.length }}
+            </p>
+          </div>
+
+          <!-- BLE Transactions -->
+          <div class="bg-purple-200 p-4 rounded-xl text-center border border-purple-400">
+            <p class="text-xs font-semibold text-gray-600">
+              🔵 BLE
+            </p>
+            <p class="text-xl font-bold text-purple-600 mt-1">
+              {{ bleTransactions.length }}
+            </p>
+          </div>
+        </div> 
+      </div>
+    </div>
       <!------ Right column: Profile card ------>
       <div>
         <!-- Profile card -->
-        <div class="bg-white rounded-2xl shadow-lg p-8 sticky top-24">
+        <div class="bg-white rounded-2xl shadow-lg p-8 lg:sticky lg:top-24">
           <h3 class="text-lg font-semibold text-gray-900 mb-6">👤 Profile</h3>
 
           <!-- Profile details -->
@@ -176,7 +299,7 @@
             <!-- Email -->
             <div class="pt-4 border-t border-gray-200">
               <p class="text-xs text-gray-600 font-medium mb-1">Email</p>
-              <p class="text-sm text-gray-700">
+              <p class="text-sm text-gray-700 break-all">
                 {{ userEmail || 'Not set' }}
               </p>
             </div>
@@ -184,16 +307,29 @@
             <!-- UPI ID -->
             <div class="pt-4 border-t border-gray-200">
               <p class="text-xs text-gray-600 font-medium mb-1">UPI ID</p>
-              <p class="text-sm text-gray-700 font-mono bg-gray-50 p-2 rounded">
+              <p class="text-sm text-gray-700 font-mono bg-gray-50 p-2 rounded break-all">
                 {{ userUpiId || 'Not set' }}
               </p>
             </div>
 
             <!-- Status -->
             <div class="pt-4 border-t border-gray-200">
-              <p class="text-xs text-gray-600 font-medium mb-1">Status</p>
+              <p class="text-xs text-gray-600 font-medium mb-1">
+                Account Status
+              </p>
               <p class="inline-block px-3 py-1 bg-green-100 text-green-800 rounded-full text-vxs font-semibold">
                ✅ Verified
+              </p>
+            </div>
+
+            <!-- Network Status -->
+            <div class="pt-4 border-t border-gray-200">
+              <p class="text-xs text-gray-600 font-medium mb-1">
+                Network
+              </p>
+              <p [ngClass]="isOnline ? 'bg-green-100 text-green-800' : 
+                'bg-red-100 text-red-800'" class="inline-block px-3 py-1 rounded-full text-xs font-semibold">
+                {{ isOnline ? '🌐 Connected' : '📴 Disconnected'}}
               </p>
             </div>
           </div> 
