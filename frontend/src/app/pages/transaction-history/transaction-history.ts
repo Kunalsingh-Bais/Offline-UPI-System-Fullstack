@@ -3,6 +3,20 @@ import { UserService } from '../../services/user';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { TransactionService } from '../../services/transaction';
+import { IndexedDbService } from '../../services/indexed-db';
+
+export interface CombinedTransaction {
+  id: string;
+  type: 'UPI' | 'BLE';
+  senderUpiId: string;
+  receiverUpiId: string;
+  amount: number;
+  description?: string;
+  status: string;
+  createdAt: string;
+  source: 'backend' | 'indexeddb';
+  direction?: 'sent' | 'received';
+}
 
 @Component({
   selector: 'app-transaction-history',
@@ -18,24 +32,31 @@ import { TransactionService } from '../../services/transaction';
 export class TransactionHistoryComponent implements OnInit{
 
   // Properties
-  allTransactions: any[] = [];
-  filteredTransactions: any[] = [];
+  allTransactions: CombinedTransaction[] = [];
+  filteredTransactions: CombinedTransaction[] = [];
   userUpiId: string | null = null;
-  // Filters:- "all" | "success" | "pending" | "lowest"
+  // Filters:- "all" | "success" | "pending" | "failed"
   selectedFilter = 'all'; 
+  selectedTransactionType = 'all';  // 'all' | 'upi' | 'ble'
   sortOrder = 'latest';
   loading = false;
-  selectedTransaction: any = null;
+  selectedTransaction: CombinedTransaction | null = null;
   showModal = false;
   errorMessage = '';
 
-  constructor(private userService: UserService, private transactionService: TransactionService, private cdr: ChangeDetectorRef) {}
+  // statistics
+  totalTransactions = 0;
+  totalAmount = 0;
+  upiCount = 0;
+  bleCount = 0;
+
+  constructor(private userService: UserService, private transactionService: TransactionService, private indexedDbService: IndexedDbService, private cdr: ChangeDetectorRef) {}
 
   ngOnInit(): void {
     console.log('TransactionHistoryComponent initialized');
     
     this.loadUserInfo();
-    this.loadTransactions();
+    this.loadAllTransactions();
   }
 
 // ------ Method 1: Load user info ------
@@ -44,68 +65,133 @@ export class TransactionHistoryComponent implements OnInit{
     console.log('History userUpiId: ', this.userUpiId);
   }  
 
-// ------ Method 2: Load Transactions History ------
-  private loadTransactions(): void {
-    console.log('Loading transactions...');
-
-    const profileIdValue = localStorage.getItem('profileId');
-
-    if (!profileIdValue) {
-      this.errorMessage = 'Profile not found. Please login again.';
-      this.cdr.detectChanges();
-      return;
-    }
-
-    const profileId = Number(profileIdValue);
+// ------ Method 2: Load All Transactions (UPI + BLE) ------
+  private async loadAllTransactions(): Promise<void> {
+    console.log('Loading all transactions (UPI + BLE)...');
     this.loading = true;
 
-    this.transactionService.getTransactionHistory(profileId).subscribe({
-      next: (response) => {
-        this.allTransactions = response;
+    try {
+      // Load both in parallel
+      await Promise.all([
+        this.loadUPITransactions(),
+        this.loadBLETransactions()
+      ]);
 
-        this.filterTransactions();
-        this.loading = false;
-        console.log('Transaction history loaded: ', response); 
+      // Calculate stats
+      this.calculateStatistics();
 
-        this.cdr.detectChanges();
+      // Apply filters
+      this.filterTransactions();
 
-        response.forEach((txn: any) => {
-        console.log({
-        currentUser: this.userUpiId,  
-        Sender: txn.senderUpiId,
-        Receiver: txn.receiverUpiId,
-        received: this.isReceived(txn),
-        Status: txn.status
-      });
-    });
-       // this.filterTransactions();
-       // this.loading = false;
-       // console.log('Transaction history loaded: ', response); 
-      },
+      this.loading = false;
+      this.cdr.detectChanges();
+    }
+    catch(error) {
+      console.error('Error loading transactions: ', error);
+      this.errorMessage = 'Failed to load transactions.';
+      this.loading = false;
+      this.cdr.detectChanges();
+    }
+  }  
 
-      error: (error) => {
-        console.error('Error loading transaction history: ', error);
-        this.loading = false;
-        this.errorMessage = 'Failed to load transaction history.';
+// ------ Method 3: Load UPI Transactions History ------
+  private loadUPITransactions(): Promise<void> {
+    return new Promise((resolve) => {
+      const profileIdValue = localStorage.getItem('profileId');
 
-        this.cdr.detectChanges();
+      if(!profileIdValue) {
+        console.warn('Profile ID not found');
+        resolve();
+        return;
       }
+
+      const profileId = Number(profileIdValue);
+
+      this.transactionService.getTransactionHistory(profileId).subscribe({
+        next: (response: any[]) => {
+          console.log('UPI transactions loaded: ', response.length);
+
+          // Convert to CombinedTransaction format
+          const upiTxns = response.map(txn => ({
+            id:txn.id || txn.transactionId,
+            type: 'UPI' as const,
+            senderUpiId: txn.senderUpiId,
+            receiverUpiId: txn.receiverUpiId,
+            amount: txn.amount,
+            description: txn.description,
+            status: txn.status,
+            createdAt: txn.createdAt,
+            source: 'backend' as const,
+            direction: (this.isReceivedUPI(txn) ? 'received' : 'sent') as 'received' | 'sent'
+          }));
+          
+          this.allTransactions.push(...upiTxns);
+          resolve();
+        },
+        error: (error) => {
+          console.error('Error loading UPI transactions: ', error);
+          this.errorMessage = 'Failed to load UPI transactions.';
+          resolve();
+        }
+      });
     });
   }  
 
-// ------ Method 3: Filter Transactions ------
+// ------ Method 4: Load BLE Transactions (from IndexedDB) ------
+  private async loadBLETransactions(): Promise<void> {
+    try {
+      const bleData = await this.indexedDbService.getAllPendingTransactions();
+      console.log('BLE transactions loaded: ', bleData?.length || 0);
+
+      if(bleData && bleData.length > 0) {
+        // Convert to CombinedTransaction format
+        const bleTxns = bleData.map(txn => ({
+          id: txn.transactionId || `BLE_${Math.random().toString(36).substr(2, 9)}`,
+          type: 'BLE' as const,
+          senderUpiId: txn.senderUpiId,
+          receiverUpiId: txn.receiverUpiId,
+          amount: txn.amount,
+          description: txn.description || 'BLE Bluetooth Payment',
+          status: txn.status,
+          createdAt: txn.createdAt,
+          source: 'indexeddb' as const,
+          direction: (this.isReceivedBLE(txn) ? 'received' : 'sent') as 'received' | 'sent'
+        }));
+
+        this.allTransactions.push(...bleTxns);
+      }
+    }
+    catch(error) {
+      console.error('Error loading BLE transactions: ', error);
+    }
+  }  
+
+// ------ Method 5: Calculate Statistics ------  
+  private calculateStatistics(): void {
+    this.totalTransactions = this.allTransactions.length;
+    this.totalAmount = this.allTransactions.reduce((sum,t) => sum + t.amount, 0);
+    this.upiCount = this.allTransactions.filter(t => t.type === 'UPI').length;
+    this.bleCount = this.allTransactions.filter(t => t.type === 'BLE').length;
+
+    console.log(`Stats - Total: ${this.totalTransactions}, UPI: ${this.upiCount}, BLE: ${this.bleCount}`);
+  }
+
+// ------ Method 6: Filter Transactions ------
   filterTransactions(): void {
 
-    // Filter by status
     let filtered = this.allTransactions;
 
+    // Filter by status
     if(this.selectedFilter !== 'all') {
       filtered = filtered.filter(t => t.status.toLowerCase() === this.selectedFilter);
     }
 
-    // Sort
-    filtered = [...filtered];
+    // Filter by transaction type (UPI/BLE)
+    if(this.selectedTransactionType !== 'all') {
+      filtered = filtered.filter(t => t.type.toLowerCase() === this.selectedTransactionType.toLowerCase());
+    }
 
+    // Sort
     switch(this.sortOrder) {
       case 'latest': 
         filtered.sort((a,b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
@@ -126,25 +212,28 @@ export class TransactionHistoryComponent implements OnInit{
     this.filteredTransactions = filtered;
   }  
 
-// ------ Method 4: Update Filter ------
+// ------ Method 7: Update Filter ------
   updateFilter(filter: string): void {
     this.selectedFilter = filter;
     this.filterTransactions();
   }
 
-// ------ Method 5: Update sort ------
+  updateTransactionType(type: string): void {
+    this.selectedTransactionType = type;
+    this.filterTransactions();
+  }
+
   updateSort(order: string): void {
     this.sortOrder = order;
     this.filterTransactions();
   }
 
-// ------ Method 6: Open Modal ------ 
-  openTransactionDetail(transaction: any): void {
+// ------ Method 8: Modal Methods ------ 
+  openTransactionDetail(transaction: CombinedTransaction): void {
     this.selectedTransaction = transaction;
     this.showModal = true;
   }  
 
-// ------ Method 7: Close Modal ------
   closeModal(): void {
     this.showModal = false;
     this.selectedTransaction = null;
@@ -155,6 +244,8 @@ export class TransactionHistoryComponent implements OnInit{
   getStatusBadgeClass(status: string): string {
     switch(status?.toUpperCase()) {
       case 'SUCCESS':
+      case 'COMPLETED':
+      case 'SYNCED':    
         return 'bg-green-100 text-green-800';
       case 'PENDING':
         return 'bg-yellow-100 text-yellow-800';
@@ -169,21 +260,50 @@ export class TransactionHistoryComponent implements OnInit{
     return (upi || '').trim().toLowerCase();
   }
 
-  isReceived(transaction: any): boolean {
+  // Check if transaction was received (for UPI)
+  private isReceivedUPI(transaction: any): boolean {
     return this.normalizeUpi(transaction.receiverUpiId) === this.normalizeUpi(this.userUpiId);
   }
 
-  getTransactionIcon(transaction: any): string {
+  // Check if transaction was received (for BLE)
+  private isReceivedBLE(transaction: any): boolean {
+    return this.normalizeUpi(transaction.receiverUpiId) === this.normalizeUpi(this.userUpiId);
+  }
+
+  getTransactionIcon(transaction: CombinedTransaction): string {
     const status = transaction.status?.toUpperCase();
 
     if (status === 'FAILED') return '❌';
     if (status === 'PENDING') return '⏳';
 
-    return this.isReceived(transaction) ? '👉' : '👈';
+    return transaction.direction === 'received' ? '👉' : '👈';
   }
 
   getTransactionType(transaction: any): string {
-    return this.isReceived(transaction) ? 'Received' : 'Sent';
+    if(transaction.type === 'BLE') {
+      return transaction.direction === 'received' ? 'Received (BLE)' : 'Sent (BLE)';
+    }
+    return transaction.direction === 'received' ? 'Received (UPI)' : 'Sent (UPI)';
+  }
+
+  // Get transaction label (e.g., "Received from bob@upi")
+  getTransactionLabel(transaction: CombinedTransaction): string {
+    const otherUpi = transaction.direction === 'received' ? transaction.senderUpiId : transaction.receiverUpiId;
+    const otherName = this.extractName(otherUpi);
+    const action = transaction.direction === 'received' ? 'from' : 'to';
+    const type = transaction.type === 'BLE' ? '(BLE)' : '';
+    return `${action} ${otherName} ${type}`;
+  }
+
+  // Extract name from UPI Id
+  private extractName(upiId: string): string {
+    if (!upiId) return 'Unknown';
+    const name = upiId.split('@')[0];
+    return name.charAt(0).toUpperCase() + name.slice(1);
+  }
+
+  getTransactionTypeBadge(transaction: CombinedTransaction): string {
+    return transaction.type === 'BLE' ? 'bg-purple-100 text-purple-800' : 'bg-blue-100 text-blue-800';
   }
 
   formatCurrency(amount: number): string {
@@ -201,7 +321,7 @@ export class TransactionHistoryComponent implements OnInit{
       return 'text-yellow-600';
     }
 
-    return this.isReceived(txn) ? 'text-green-600' : 'text-red-600';
+    return txn.direction === 'received' ? 'text-green-600' : 'text-red-600';
 
   } 
 
@@ -209,6 +329,10 @@ export class TransactionHistoryComponent implements OnInit{
     if (txn.status?.toUpperCase() === 'PENDING') return '⏳';
     if (txn.status?.toUpperCase() === 'FAILED') return '❌';
 
-    return this.isReceived(txn) ? '+' : '-';
+    return txn.direction === 'received' ? '+' : '-';
+  }
+
+  getAmountText(txn: CombinedTransaction): string {
+    return `${this.getAmountPrefix(txn)} ${this.formatCurrency(txn.amount)}`;
   }
 }
