@@ -39,6 +39,12 @@ public class Transaction {
     @Column(nullable = false)
     private String status;  // "PENDING", "SUCCESS", "FAILED"
 
+    @Column(length = 25)
+    private String paymentMethod;  // UPI, Bluetooth , Card ,etc
+
+    @Column(length = 25)
+    private String source; // REGULAR, BLE_SYNC, etc
+
     @Column(nullable = false)
     private String txnHash;  // SHA-256 hash of transaction data
 
