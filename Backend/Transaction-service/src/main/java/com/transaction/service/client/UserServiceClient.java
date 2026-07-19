@@ -15,6 +15,23 @@ public interface UserServiceClient {
     @CircuitBreaker(name = "userServiceCircuitBreaker", fallbackMethod = "updateBalanceFallback")
     Map<String, Object> updateBalance(@RequestBody Map<String, Object> request);
 
+    @PostMapping("/user/profile/by-upi")
+    @CircuitBreaker(name = "userServiceCircuitBreaker", fallbackMethod = "getProfileByUpiIdFallback")
+    Map<String, Object> getProfileByUpiId(@RequestBody Map<String, Object> request);
+
+    // Fallback for getProfileByUpiId
+    default Map<String, Object> getProfileByUpiIdFallback(Map<String, Object> request, Exception ex) {
+        Map<String, Object> fallbackResponse = new HashMap<>();
+        fallbackResponse.put("success", false);
+        fallbackResponse.put("message", "User Service unavailable - Cannot fetch profile");
+        fallbackResponse.put("error", ex.getMessage());
+
+        System.err.println("Circuit Breaker Fallback (getProfileByUpiId): " + ex.getMessage());
+
+        return fallbackResponse;
+    }
+
+    // Fallback for updateBalance
     default Map<String, Object> updateBalanceFallback(Map<String, Object> request, Exception ex) {
         Map<String, Object> fallbackResponse = new HashMap<>();
         fallbackResponse.put("success", false);
