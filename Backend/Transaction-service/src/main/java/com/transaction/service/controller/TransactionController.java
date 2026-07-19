@@ -1,9 +1,6 @@
 package com.transaction.service.controller;
 
-import com.transaction.service.dto.CompleteTransactionRequest;
-import com.transaction.service.dto.CompleteTransactionResponse;
-import com.transaction.service.dto.InitiateTransactionRequest;
-import com.transaction.service.dto.InitiateTransactionResponse;
+import com.transaction.service.dto.*;
 import com.transaction.service.encryption.EncryptionProcessor;
 import com.transaction.service.service.TransactionService;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -137,4 +134,49 @@ public class TransactionController {
     public ResponseEntity<?> getTransactionHistory(@PathVariable Integer profileId) {
         return ResponseEntity.ok(transactionService.getTransactionHistory(profileId));
     }
+
+    // ------ POST /transaction/sync-ble
+    @PostMapping("/sync-ble")
+    public ResponseEntity<BLESyncResponse> syncBLETransaction(@RequestBody BLESyncRequest request) {
+        try {
+            System.out.println("\n ==== BLE Transaction Sync Endpoint ====");
+            System.out.println("Transaction ID: " + request.getTransactionId());
+            System.out.println("Encrypted data length: " + (request.getEncryptedData() != null ? request.getEncryptedData().length() : "null"));
+
+            // Validate Request
+            if (request.getTransactionId() == null || request.getTransactionId().isEmpty()) {
+                System.err.println("❌ Transaction ID is required");
+                return ResponseEntity.badRequest().body(new BLESyncResponse(null, "FAILED", "transactionID is required",
+                        false, new java.util.Date().toString()));
+            }
+
+            if (request.getEncryptedData() == null || request.getEncryptedData().isEmpty()) {
+                System.err.println("❌ Encrypted data is required");
+                return ResponseEntity.badRequest().body(new BLESyncResponse(request.getTransactionId(), "FAILED", "encryptedData is required",
+                        false, new java.util.Date().toString()));
+            }
+
+            // Delegate to service
+            System.out.println("Calling TransactionService.syncBLETransaction()");
+            BLESyncResponse response = transactionService.syncBLETransaction(request);
+
+            // Return response
+            if (response.isSuccess()) {
+                System.out.println("BLE Sync successful");
+                return ResponseEntity.status(HttpStatus.CREATED).body(response);
+            }
+            else {
+                System.out.println("❌ BLE sync failed: " + response.getMessage());
+                return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(response);
+            }
+        }
+        catch (Exception e) {
+            System.err.println("Unexpected error in BLE sync: " + e.getMessage());
+            e.printStackTrace();
+
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body(new BLESyncResponse(request.getTransactionId(), "FAILED",
+                    "Error: " + e.getMessage(), false, new java.util.Date().toString()));
+        }
+    }
+
 }
