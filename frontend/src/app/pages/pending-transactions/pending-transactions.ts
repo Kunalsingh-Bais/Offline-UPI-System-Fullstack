@@ -170,7 +170,7 @@ export class PendingTransactionsComponent implements OnInit, OnDestroy{
       this.notification = null;
       this.cdr.detectChanges();
     }
-  }
+  } 
 
 // ------ Method 3: Delete transaction ------
   async deleteTransaction(id?: number): Promise<void> {
@@ -197,7 +197,7 @@ export class PendingTransactionsComponent implements OnInit, OnDestroy{
     } 
   }  
 
-// ------ Method 4: Retry Pending transaction ------
+// ------ Method 4: Retry Pending transaction (UPI + BLE) ------
   async retryTransaction(txn: PendingTransaction): Promise<void> {
     if (!txn.id) {
       console.warn('Transaction ID missing');
@@ -209,14 +209,19 @@ export class PendingTransactionsComponent implements OnInit, OnDestroy{
       return;
     }
 
+    if (!this.isOnline) {
+      this.showNotification('error', 'You are offline.\n\nWill retry when online.');
+      return;
+    }
+
     // Step 1: Show processing state 
     this.isRetrying = true;
     this.retryingTransactionId = txn.transactionId;
     this.cdr.detectChanges();
 
-    this.showNotification('processing', `Processing payment for ₹${txn.amount}...`)
+    this.showNotification('processing', `⏳ Processing payment for ₹{txn.type === 'BLE' ? 'BLE' : 'UPI'} payment...\n\nAmount: ₹${txn.amount}`);
 
-    console.log('Starting retry for: ', txn.transactionId);
+    console.log(`Starting retry for: ${txn.transactionId} (Type" ${txn.type})`);
 
     console.log('⏳ Showing processing spinner...');
     await this.delay(2000);
@@ -238,31 +243,58 @@ export class PendingTransactionsComponent implements OnInit, OnDestroy{
 
       console.log('Sending to backend...');
 
-      // Step 4: Send to backend
-      const response = await firstValueFrom(this.transactionService.completeTransaction(request));
+      // Step 4: Route to correct endpoint based on type
+      let response: any;
 
-      console.log('Backend response received: ', response);
+      if (txn.type === 'BLE') {
+        // --- BLE transaction ---
+        console.log('Routing to BLE sync endpoint...');
+        response = await this.syncBleService.syncSingleBLE(txn);
+        console.log('BLE response: ', response);
 
-      // Step 5: Check response
-      if(response && response.success) {
-        console.log('SUCCESS: Backend confirmed transaction');
+        // Check if sync was successful
+        if (response.success) {
+          console.log('SUCCESS: BLE synced');
+          
+          // Update status to SYNCED
+          txn.status = 'SYNCED';
+          await this.indexedDbService.updatePendingTransaction(txn);
 
-        await this.indexedDbService.deletePendingTransaction(txn.id);
-        console.log('Deleted from IndexedDB');
+          this.showNotification('success', `✅ BLE Payment Synced!\n\nAmount: ₹${txn.amount}\nTransaction synced to backend`);
+        }
+        else {
+          console.log('Failed: BLE sync failed');
+          txn.status = 'FAILED';
+          await this.indexedDbService.updatePendingTransaction(txn);
 
-        this.showNotification('success', `✅ Payment Successful! \n\n Transaction: ${txn.transactionId}\n Amount: ₹${txn.amount}\n\n Transaction moved to history.`);
-
-        await this.delay(6000);
+          this.showNotification('error', `❌ BLE Sync Failed\n\n${response.message}\n\nRetry count: ${txn.retryCount}/5`);
+        }
       }
       else {
-        console.log('FAILED: Backend returned failed status');
+        // --- UPI Transaction ---
+        console.log('Routing to UPI complete endpoint...');
+        response = await firstValueFrom(this.transactionService.completeTransaction(request));
 
-        txn.status = 'FAILED';
-        await this.indexedDbService.updatePendingTransaction(txn);
+        console.log('UPI response: ', response);
 
-        this.showNotification('error', `❌ Payment Failed\n\n Server rejected the transaction. \n\n Retry count: ${txn.retryCount}/5`);
+        // Check if backend accepted
+        if (response && response.success) {
+          console.log('SUCCESS: UPI payment completed');
 
-        await this.delay(6000);
+          // Delete from IndexedDbService (Transaction is completed)
+          await this.indexedDbService.deletePendingTransaction(txn.id);
+          console.log('Deleted from IndexedDB');
+
+          this.showNotification('success', `✅ UPI Payment Completed!\n\nAmount: ₹${txn.amount}`);
+        }
+        else {
+          console.log('FAILED: Backend rejected UPI');
+
+          txn.status = 'FAILED';
+          await this.indexedDbService.updatePendingTransaction(txn);
+
+          this.showNotification('error','❌UPI Payment Failed');
+        }
       }
     }
     catch (error: any) {
@@ -294,12 +326,14 @@ export class PendingTransactionsComponent implements OnInit, OnDestroy{
       await this.delay(6000);
     }
     finally {
-      // Step 6: Reset UI flags
+      // Step 5: Reset UI flags
       this.isRetrying = false;
       this.retryingTransactionId = null;
       this.cdr.detectChanges();
 
-      // Step 7: Reload List
+      await this.delay(3000);
+
+      // Step 6: Reload List
       await this.loadPendingTransactions();
 
       // Clear notification
@@ -327,7 +361,7 @@ export class PendingTransactionsComponent implements OnInit, OnDestroy{
     }
   }  
 
-// ------ Method 6: Retry All Pending Transactions ------  
+// ------ Method 7: Retry All Pending Transactions ------  
   async syncAllTransactions(): Promise<void> {
     if (this.pendingTransactions.length === 0) {
       this.showNotification('info', 'No pending transactions to sync');
