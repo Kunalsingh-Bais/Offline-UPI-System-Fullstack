@@ -102,9 +102,9 @@
       </button>
 
       <!-- SYNC All button -->
-      <button (click)="syncAllTransactions()" [disabled]="isRetrying || pendingTransactions.length === 0" class="px-6 py-2 rounded-lg 
+      <button (click)="syncAllTransactions()" [disabled]="isRetrying || getSyncableTransactionCount() === 0" class="px-6 py-2 rounded-lg 
         font-semibold text-white transition {{ isRetrying ? 'bg-gray-400 cursor-not-allowed' : 'bg-blue-500 hover:bg-blue-600' }}">
-        {{ isRetrying ? '⏳ Syncing...' : `🔄 Sync All (${pendingTransactions.length})`}}
+        {{ isRetrying ? '⏳ Syncing...' : '🔄 Sync All (' + getSyncableTransactionCount() + ')'}}
       </button>
     </div>  
   </div>  
@@ -121,19 +121,19 @@
     <!-- Pending -->
     <div class="bg-yellow-100 p-4 rounded-lg text-center border-2 border-yellow-300">
       <p class="text-gray-600 text-xs font-semibold uppercase">⏳ Pending</p>
-      <p class="text-3xl font-bold text-gray-900">{{ bleStats.pending}}</p>
+      <p class="text-3xl font-bold text-gray-900">{{ getPendingCount() }}</p>
     </div>
 
     <!-- Synced -->
     <div class="bg-green-100 p-4 rounded-lg text-center border-2 border-green-300">
       <p class="text-gray-600 text-xs font-semibold uppercase">☁️ Synced</p>
-      <p class="text-3xl font-bold text-green-900">{{ bleStats.synced }}</p>
+      <p class="text-3xl font-bold text-green-900">{{ getSyncedCount() }}</p>
     </div>
   
     <!-- Failed -->
     <div class="bg-red-100 p-4 rounded-lg text-center border-2 border-red-300">
       <p class="text-gray-600 text-xs font-semibold uppercase">❌ Failed</p>
-      <p class="text-3xl font-bold text-green-900">{{ bleStats.failed }}</p>
+      <p class="text-3xl font-bold text-green-900">{{ getFailedCount() }}</p>
     </div>
   </div>
 
@@ -223,7 +223,7 @@
 
       <!-- Retry button -->
       <button (click)="retryTransaction(txn)" 
-        [disabled]="isRetrying || txn.retryCount >=5" [ngClass]="{'opacity-50 cursor-not-allowed': isRetrying || txn.retryCount >=5 }"
+        [disabled]="txn.status === 'FAILED' || isRetrying || txn.retryCount >=5" [ngClass]="{'opacity-50 cursor-not-allowed': txn.status === 'FAILED' || isRetrying || txn.retryCount >=5 }"
         class="flex-1 px-4 py-2 rounded-lg font-semibold text-white transition
           {{retryingTransactionId === txn.transactionId ? 'bg-blue-600' : 'bg-green-500 hover:bg-green-600' }}
           {{(isRetrying && retryingTransactionId !== txn.transactionId) ? 'opacity-50' : ''}}">
