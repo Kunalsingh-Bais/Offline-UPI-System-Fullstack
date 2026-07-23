@@ -171,6 +171,7 @@ export class PaymentCompleteComponent implements OnInit{
     }).subscribe({
 
       // Success
+
       next: (response) => {
 
         if(response.success && response.status === 'SUCCESS') {
@@ -223,6 +224,7 @@ export class PaymentCompleteComponent implements OnInit{
           amount: this.transactionData.amount,
           description: this.transactionData.description,
           encryptedData: this.encryptedData,
+          type: 'UPI',
           status: 'PENDING',
           createdAt: new Date().toISOString(),
           retryCount: 0
