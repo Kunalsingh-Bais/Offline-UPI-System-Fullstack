@@ -69,14 +69,17 @@ export class TransactionHistoryComponent implements OnInit{
   private async loadAllTransactions(): Promise<void> {
     console.log('Loading all transactions (UPI + BLE)...');
     this.loading = true;
+    this.allTransactions = [];
 
     try {
       // Load both in parallel
       await Promise.all([
         this.loadUPITransactions(),
-        this.loadBLETransactions()
+        this.loadBLETransactions(),
       ]);
 
+      this.allTransactions = this.allTransactions.filter((txn, index, self) => index === self.findIndex(t => t.id === txn.id));
+      
       // Calculate stats
       this.calculateStatistics();
 
@@ -95,7 +98,7 @@ export class TransactionHistoryComponent implements OnInit{
   }  
 
 // ------ Method 3: Load UPI Transactions History ------
-  private loadUPITransactions(): Promise<void> {
+  private async loadUPITransactions(): Promise<void> {
     return new Promise((resolve) => {
       const profileIdValue = localStorage.getItem('profileId');
 
@@ -140,25 +143,38 @@ export class TransactionHistoryComponent implements OnInit{
 // ------ Method 4: Load BLE Transactions (from IndexedDB) ------
   private async loadBLETransactions(): Promise<void> {
     try {
-      const bleData = await this.indexedDbService.getAllPendingTransactions();
+      const allPending = await this.indexedDbService.getAllPendingTransactions();
+
+      // filter to load BLE transaction
+      const bleData = allPending.filter(txn => txn.type === 'BLE');
+  
       console.log('BLE transactions loaded: ', bleData?.length || 0);
+      console.log(bleData);
 
       if(bleData && bleData.length > 0) {
+        
+        const syncedBLE = bleData.filter(t => t.status === 'SYNCED');
         // Convert to CombinedTransaction format
         const bleTxns = bleData.map(txn => ({
           id: txn.transactionId || `BLE_${Math.random().toString(36).substr(2, 9)}`,
-          type: 'BLE' as const,
+          type: txn.type,
           senderUpiId: txn.senderUpiId,
           receiverUpiId: txn.receiverUpiId,
           amount: txn.amount,
-          description: txn.description || 'BLE Bluetooth Payment',
+          description: txn.description || (txn.type === 'BLE' ? 'BLE Bluetooth Payment' : 'UPI Payment'),
           status: txn.status,
           createdAt: txn.createdAt,
           source: 'indexeddb' as const,
           direction: (this.isReceivedBLE(txn) ? 'received' : 'sent') as 'received' | 'sent'
         }));
 
-        this.allTransactions.push(...bleTxns);
+        bleTxns.forEach(txn => {
+          const exists = this.allTransactions.some(t => t.id === txn.id);
+
+          if (!exists) {
+            this.allTransactions.push(txn);
+          }
+        });
       }
     }
     catch(error) {
