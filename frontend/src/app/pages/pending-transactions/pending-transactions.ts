@@ -98,9 +98,9 @@ export class PendingTransactionsComponent implements OnInit, OnDestroy{
 // ------ Calculate BLE Sync Statistics ------  
   private calculateBLEStats(): void {
     this.bleStats = {
-      pending: this.pendingTransactions.filter(t => t.status === 'PENDING').length,
-      synced: this.pendingTransactions.filter(t => t.status === 'SYNCED').length,
-      failed: this.pendingTransactions.filter(t => t.status === 'FAILED').length
+      pending: this.pendingTransactions.filter(t => t.type === 'BLE' && t.status === 'PENDING').length,
+      synced: this.pendingTransactions.filter(t => t.type === 'BLE' && t.status === 'SYNCED').length,
+      failed: this.pendingTransactions.filter(t => t.type === 'BLE' && t.status === 'FAILED').length
     };
     console.log('BLE Stats: ', this.bleStats);
   }
@@ -210,7 +210,18 @@ export class PendingTransactionsComponent implements OnInit, OnDestroy{
     }
 
     if (!this.isOnline) {
-      this.showNotification('error', 'You are offline.\n\nWill retry when online.');
+      this.showNotification('error', '📴 You are offline.\n\nWill retry when online.');
+      return;
+    }
+
+    if ((txn.retryCount || 0) > 5) {
+      txn.status = 'FAILED';
+
+      await this.indexedDbService.updatePendingTransaction(txn);
+
+      this.showNotification('error', `❌ Maximum retry limit reached.`);
+
+      await this.loadPendingTransactions();
       return;
     }
 
@@ -228,8 +239,9 @@ export class PendingTransactionsComponent implements OnInit, OnDestroy{
     
     try {
       // Step 2: Update status to SYNCING
+      
+      txn.retryCount = (txn.retryCount || 0) + 1;
       txn.status = 'SYNCING';
-      txn.retryCount = txn.retryCount + 1;
 
       await this.indexedDbService.updatePendingTransaction(txn);
       console.log('Updated to SYNCING, retry count: ', txn.retryCount);
@@ -253,7 +265,7 @@ export class PendingTransactionsComponent implements OnInit, OnDestroy{
         console.log('BLE response: ', response);
 
         // Check if sync was successful
-        if (response.success) {
+        if (response && response.success) {
           console.log('SUCCESS: BLE synced');
           
           // Update status to SYNCED
@@ -267,7 +279,12 @@ export class PendingTransactionsComponent implements OnInit, OnDestroy{
           txn.status = 'FAILED';
           await this.indexedDbService.updatePendingTransaction(txn);
 
-          this.showNotification('error', `❌ BLE Sync Failed\n\n${response.message}\n\nRetry count: ${txn.retryCount}/5`);
+          if (txn.retryCount >= 5) {
+            this.showNotification('error', `❌ BLE Sync Failed\n\n${response.message}\n\nRetry count: ${txn.retryCount}/5`);
+          }
+          else {
+            this.showNotification('error', `❌ BLE Sync Failed\n\n${response.message}\n\nRetry count: ${txn.retryCount}/5`);
+          }
         }
       }
       else {
@@ -361,115 +378,182 @@ export class PendingTransactionsComponent implements OnInit, OnDestroy{
     }
   }  
 
-// ------ Method 7: Retry All Pending Transactions ------  
+// ------ Method 6: Sync All Pending Transactions ------  
   async syncAllTransactions(): Promise<void> {
+
+    // Step 1: Check whether transactions exist
     if (this.pendingTransactions.length === 0) {
       this.showNotification('info', 'No pending transactions to sync');
       return;
     }
 
+    // Prevent multiple sync processes at the same time
     if(this.isRetrying) {
-      console.warn('Already retrying');
+      console.warn('Already syncing');
       return;
     }
 
+    // Step 2: Only include transactions below max retry limit
+    const syncableTransactions = this.pendingTransactions.filter(txn => (txn.retryCount || 0) < 5);
+
+    // Nothing can be retried
+    if (syncableTransactions.length === 0) {
+      this.showNotification('info', '⚠️ All transactions have reached max retry limit (5)');
+      return;
+    }
+
+    // Calculate amount only for transactions actually being synced
+    const syncableTotalAmount = syncableTransactions.reduce((sum, txn) => sum + txn.amount, 0);
+
+    // Ask user for confirmation
     const confirmSync = confirm(
-      `Sync ${this.pendingTransactions.length} pending transactions?\n\n` +
-      `Total Amount: ₹{this.getTotalAmount()}`
+      `Sync ${this.getSyncableTransactionCount()} pending transactions?\n\n` +
+      `Total Amount: ₹${this.getSyncableTransactionAmount()}`
     );
 
     if (!confirmSync) return;
 
-    // Step 1: Set UI flags
+    // Step 3: Set UI syncing state 
     this.isRetrying = true;
     this.cdr.detectChanges();
 
-    this.showNotification('processing', `⏳ Syncing ${this.pendingTransactions.length} transactions...`);
+    this.showNotification('processing', `⏳ Syncing ${this.getSyncableTransactionCount()} transactions...\n\nTotal Amount: ₹${this.getSyncableTransactionAmount()}`);
 
     console.log('Starting sync of All Transactions...');
     await this.delay(4000);
 
     let successCount = 0;
     let failureCount = 0;
-    const transactionsToDelete: number[] = [];
-
-    // Step 2: Process each transaction
-    for (let i = 0; i < this.pendingTransactions.length; i++) {
-      const txn = this.pendingTransactions[i];
-      if (!txn.id) continue;
-
-      console.log(`⏳ Syncing ${i + 1}/${this.pendingTransactions.length}: ${txn.transactionId}`);
-      this.showNotification('processing', 
-      `⏳ Syncing (${i + 1}/${this.pendingTransactions.length})...\n${txn.transactionId}\n₹${txn.amount}`
-    );
-
-    await this.delay(4000);
 
     try {
-      // Mark as SYNCING
-      txn.status = 'SYNCING';
-      txn.retryCount = txn.retryCount + 1;
-        
-      await this.indexedDbService.updatePendingTransaction(txn);
-      console.log(`Syncing ${txn.transactionId}...`);
+      // Step 4: Create one async task for every transaction
+      const syncPromises = syncableTransactions.map(async (txn, index) => {
+        if (!txn.id) {
+          console.warn(`Skipping ${txn.transactionId}: IndexedDB ID missing`);
+          return;
+        }
 
-      // Send to backend
-      const request = {
-      encryptedData: txn.encryptedData,
-      transactionId: txn.transactionId
-      };
-        
-      this.transactionService.completeTransaction(request).subscribe({
-        next: async (response) => {
-          // Check response
-          if (response.success) {
-            console.log(`${txn.transactionId} synced`);
-            successCount++;
+        console.log(`Syncing ${index + 1}/${syncableTransactions.length}: ` + `${txn.transactionId} (${txn.amount})`);
 
-            await this.indexedDbService.deletePendingTransaction(txn.id!);
+        try {
+          // Increment retry only ONCE for this attempt
+          txn.retryCount = (txn.retryCount || 0) + 1;
+          txn.status = 'SYNCING';
+
+          await this.indexedDbService.updatePendingTransaction(txn);
+
+          console.log(`${txn.transactionId} marked SYNCING - ` + `retry ${txn.retryCount}/5`);
+
+          // Request required for backend
+          const request = {
+            transactionId: txn.transactionId,
+            encryptedData: txn.encryptedData
+          };
+
+          // BLE Transaction
+          if (txn.type === 'BLE') {
+            console.log(`Routing ${txn.transactionId} to BLE sync`);
+
+            const response = await this.syncBleService.syncSingleBLE(txn);
+
+            console.log('BLE sync response: ', response);
+
+            if (response && response.success) {
+              console.log(`BLE ${txn.transactionId} synced successfully`);
+
+              successCount++;
+
+              // Keep BLE record locally as synced
+              txn.status = 'SYNCED';
+              await this.indexedDbService.updatePendingTransaction(txn);
+            }
+            else {
+              console.log(`BLE ${txn.transactionId} failed`);
+
+              failureCount++;
+              txn.status = 'FAILED';
+
+              await this.indexedDbService.updatePendingTransaction(txn);
+            }
           }
+
+          // UPI Transaction
           else {
-            console.log(`${txn.transactionId} failed at backend`);
+            console.log(`Routing ${txn.transactionId} to UPI endpoint`);
 
-            failureCount++;
-            txn.status = 'FAILED';
+            const response = await firstValueFrom(this.transactionService.completeTransaction(request));
 
+            console.log('UPI response: ', response);
+
+            if(response && response.success) {
+              console.log(`UPI ${txn.transactionId} synced successfully`);
+
+              successCount++;
+
+              // After UPI is completed , remove pending locally
+              await this.indexedDbService.deletePendingTransaction(txn.id);
+
+              console.log(`${txn.transactionId} removed from pending IndexedDB`);
+            }
+            else {
+              console.log(`UPI ${txn.transactionId} failed`);
+              failureCount++;
+
+              txn.status = 'FAILED';
+              await this.indexedDbService.updatePendingTransaction(txn);
+            }
+          }
+        }
+        catch (error: any) {
+          console.error(`Error syncing ${txn.transactionId}: `, error);
+
+          failureCount++;
+          txn.status = 'FAILED';
+
+          try {
             await this.indexedDbService.updatePendingTransaction(txn);
+          }
+          catch (dbError) {
+            console.error(`Failed to update ${txn.transactionId} ` + `to FAILED in IndexedDB: `, dbError);
           }
         }
       });
+
+      // Step 5: Wait until All transactions finish
+      await Promise.all(syncPromises);
+
+      console.log('All transaction sync attempts completed');
     }
     catch (error) {
-      console.warn(`${txn.transactionId} error:`, error);
-      failureCount++;
-      txn.status = 'FAILED';
+      console.error('Unexpected error during Sync All: ', error);
 
-      await this.indexedDbService.updatePendingTransaction(txn);
+      this.showNotification('error', '❌ An unexpected error occurred while syncing transactions.');
+
     }
+    finally {
+      // Step 6: Always reset UI state
+      this.isRetrying = false;
+      this.cdr.detectChanges();
+
+      // Reload latest transaction states from IndexedDB
+      await this.loadPendingTransactions();
+
+      // Show final summary
+      const summary = `Sync Complete: \n\n` + `Success: ${successCount}\n` + `Failed: ${failureCount}`;
+
+      if (failureCount > 0) {
+        this.showNotification('info', summary);
+      }
+      else {
+        this.showNotification('success', summary);
+      }
+
+      console.log(summary);
+
+      await this.delay(3000);
+      this.notification = null;
+      this.cdr.detectChanges();
   }
-
-  // Step 3: Delete successfully synced transactions
-  console.log(`Deleting ${transactionsToDelete.length} successful transactions...`);
-
-  for (const id of transactionsToDelete) {
-    await this.indexedDbService.deletePendingTransaction(id);
-  }
-
-  // Step 4: Reset UI flags
-  this.isRetrying = false;
-  this.cdr.detectChanges();
-
-  // Step 5: Reload and show summary
-  await this.loadPendingTransactions();
-
-  const summary = `Sync Complete:\n Success: ${successCount}\n Failed: ${failureCount}`;
-  this.showNotification('success', summary);
-  console.log(summary); 
-
-  await this.delay(4000);
-
-  this.notification = null;
-  this.cdr.detectChanges();
 }
 
 // ------ Helper Method 1: Show Alert/Toast ------  
@@ -536,5 +620,13 @@ export class PendingTransactionsComponent implements OnInit, OnDestroy{
 
   getSyncedCount(): number {
     return this.pendingTransactions.filter(txn => txn.status === 'SYNCED').length;
+  }
+
+  getSyncableTransactionCount(): number {
+    return this.pendingTransactions.filter(txn => txn.retryCount < 5 && txn.status === 'PENDING').length;
+  }
+
+  getSyncableTransactionAmount(): number {
+    return this.pendingTransactions.filter(txn => txn.status === 'PENDING').reduce((total, txn) => total + txn.amount, 0);
   }
 }
