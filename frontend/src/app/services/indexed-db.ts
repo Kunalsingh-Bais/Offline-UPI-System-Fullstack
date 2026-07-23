@@ -8,9 +8,10 @@ export interface PendingTransaction {
   amount: number;
   description?: string;
   encryptedData: string;
-  status: 'PENDING' | 'SYNCING' | 'FAILED';
+  status: 'PENDING' | 'SYNCING' | 'FAILED' | 'SYNCED';
   createdAt: string;
   retryCount: number;
+  type: 'UPI' | 'BLE';
 }
 
 @Injectable({
