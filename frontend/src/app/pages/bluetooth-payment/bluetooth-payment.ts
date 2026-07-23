@@ -283,6 +283,7 @@ export class BluetoothPaymentComponent implements OnInit, OnDestroy {
         amount: paymentData.amount,
         description: `BLE Payment via ${this.connectedDevice.name}`,
         encryptedData: encryptedData,
+        type: 'BLE',
         status: 'PENDING',
         createdAt: new Date().toISOString(),
         retryCount: 0
@@ -373,6 +374,7 @@ export class BluetoothPaymentComponent implements OnInit, OnDestroy {
           amount: 0,
           description: `BLE Received from ${this.connectedDevice?.name}`,
           encryptedData: this.receivedPaymentRequest.data, // Store encrypted as it is
+          type: 'BLE',
           status: 'PENDING',
           createdAt: new Date().toISOString(),
           retryCount: 0
