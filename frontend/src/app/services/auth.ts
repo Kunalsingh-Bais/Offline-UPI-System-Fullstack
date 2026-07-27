@@ -1,6 +1,7 @@
 import { HttpClient } from '@angular/common/http';
 import { Injectable } from '@angular/core';
 import { BehaviorSubject, catchError, Observable, tap } from 'rxjs';
+import { ApiService } from './api';
 
 // Interface for login response
 interface LoginResponse {
@@ -35,8 +36,6 @@ interface RegisterResponse {
   providedIn: 'root',
 })
 export class AuthService {
-  // Base url - points to Api gateway
-  private apiUrl = 'http://localhost:8080/api/auth';
 
   // Track login status
   private isLoggedInSubject = new BehaviorSubject<boolean>(this.hasToken());
@@ -48,7 +47,7 @@ export class AuthService {
   private userSubject = new BehaviorSubject<any>(this.getUserFromStorage());
   public user$ = this.userSubject.asObservable();
 
-  constructor(private http: HttpClient) {
+  constructor(private http: HttpClient , private api: ApiService) {
     console.log('AuthService initialized');
   }
 
@@ -59,7 +58,7 @@ export class AuthService {
 
     // Make POST request to backend 
     return this.http.post<RegisterResponse>(
-      `${this.apiUrl}/register`, 
+      `${this.api.auth}/register`, 
       userData            // Request body
     ).pipe(
       tap(Response => {           // run when response arrives
@@ -78,7 +77,7 @@ export class AuthService {
     console.log('Logging in user: ', email);
 
     // Make POST request to backend
-    return this.http.post<LoginResponse>( `${this.apiUrl}/login`,
+    return this.http.post<LoginResponse>( `${this.api.auth}/login`,
       {
         email: email,
         password: password

@@ -1,6 +1,7 @@
 import { HttpClient } from '@angular/common/http';
 import { Injectable } from '@angular/core';
 import { catchError, Observable, take, tap, throwError } from 'rxjs';
+import { ApiService } from './api';
 
 // Interface for initiate transaction request
 interface InitiateTransactionRequest {
@@ -55,10 +56,7 @@ interface PublicKeyResponse {
 })
 export class TransactionService {
 
-  // Base url - points to transaction service via API Gateway
-  private apiUrl = 'http://localhost:8080/api/transaction';
-
-  constructor(private http: HttpClient) {
+  constructor(private http: HttpClient, private api: ApiService) {
     console.log('TransactionService initialized');
   }
 
@@ -69,7 +67,7 @@ export class TransactionService {
 
     // Make POST request to backend
     return this.http.post<InitiateTransactionResponse>(
-      `${this.apiUrl}/initiate`, 
+      `${this.api.transaction}/initiate`, 
       request                  // request body
     ).pipe(
         // when response arrives, log it
@@ -99,7 +97,7 @@ export class TransactionService {
 
     // Make GET request to backend
     return this.http.get<PublicKeyResponse>(
-      `${this.apiUrl}/public-key/${transactionId}`
+      `${this.api.transaction}/public-key/${transactionId}`
     ).pipe(
       tap(response => {
         if(response.success) {
@@ -121,7 +119,7 @@ export class TransactionService {
 
     // Make POST request to backend
     return this.http.post<CompleteTransactionResponse>(
-      `${this.apiUrl}/complete`,
+      `${this.api.transaction}/complete`,
       request                    // Request body with encrypted data
     ).pipe(
       tap(response => {
@@ -146,7 +144,7 @@ export class TransactionService {
 // ------ Method 4: Transaction History ------
   getTransactionHistory(profileId: number): Observable<any[]> {
     return this.http.get<any[]>(
-      `${this.apiUrl}/history/profile/${profileId}`
+      `${this.api.transaction}/history/profile/${profileId}`
     );
   }  
 }

@@ -1,6 +1,7 @@
 import { HttpClient } from '@angular/common/http';
 import { Injectable } from '@angular/core';
 import { catchError, Observable, Subject, tap, throwError } from 'rxjs';
+import { ApiService } from './api';
 
 // Interface for create profile request
 interface CreateProfileRequest {
@@ -47,11 +48,8 @@ interface GetBalanceResponse {
   providedIn: 'root',
 })
 export class UserService {
-  
-  // Base URL
-  private apiUrl = 'http://localhost:8080/api/user';
 
-  constructor(private http: HttpClient) {
+  constructor(private http: HttpClient, private api: ApiService) {
     console.log('UserService initialized');
   }
 
@@ -62,7 +60,7 @@ export class UserService {
 
     // Make POST request to backend
     return this.http.post<CreateProfileResponse>(
-      `${this.apiUrl}/profile/create`,
+      `${this.api.user}/profile/create`,
       request                             // Request body
     ).pipe(
       tap(response => {
@@ -90,7 +88,7 @@ export class UserService {
 
     // Make GET request to backend
     return this.http.get<GetProfileResponse>(
-      `${this.apiUrl}/profile/auth/${authUserId}`  // Full URL with user Id 
+      `${this.api.user}/profile/auth/${authUserId}`  // Full URL with user Id 
     )
     .pipe(
       tap(response => {
@@ -114,7 +112,7 @@ export class UserService {
 
     // Make GET request to backend
     return this.http.get<GetBalanceResponse> (
-      `${this.apiUrl}/wallet/balance/${profileId}` //Full URL with profile Id
+      `${this.api.user}/wallet/balance/${profileId}` //Full URL with profile Id
     )
     .pipe(
       tap(response => {
@@ -133,7 +131,7 @@ export class UserService {
 // ------ Get Profile by Upi Id ------  
   getProfileByUpiId(upiId: string): Observable<any> {
     console.log('Searching profile by UPI ID: ', upiId);
-    return this.http.get<any>(`${this.apiUrl}/profile/upi/${upiId}`);
+    return this.http.get<any>(`${this.api.user}/profile/upi/${upiId}`);
   }
 
 // ------ Helper Method 1: Save Profile to Localstorage ------

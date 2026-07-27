@@ -69,11 +69,7 @@ export class BluetoothService {
       // Request device from user
       const device = await navigator.bluetooth.requestDevice({
         // Filter by our custom service UUID
-        filters: [
-          {
-            services: [this.SERVICE_UUID]
-          }
-        ],
+        acceptAllDevices: true,
         // Allow user to see all devices (optional)
         optionalServices: [this.SERVICE_UUID]
       });
