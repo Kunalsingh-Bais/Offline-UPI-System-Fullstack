@@ -1,8 +1,9 @@
-import { HttpClient, HttpErrorResponse } from '@angular/common/http';
+import { HttpErrorResponse } from '@angular/common/http';
 import { Injectable } from '@angular/core';
 import { IndexedDbService } from './indexed-db';
 import { catchError, from, Observable, of, switchMap} from 'rxjs';
 import { ApiService } from './api';
+import { NetworkService } from './network';
 
 export interface PendingTransaction {
   id?: number;
@@ -35,7 +36,7 @@ export interface SyncResult {
 
 export class SyncBleService {
 
-  constructor(private http: HttpClient, private indexedDbService: IndexedDbService, private api: ApiService) {}
+  constructor(private indexedDbService: IndexedDbService, private api: ApiService, private network: NetworkService) {}
 
 // ------ Main Method: Sync All Pendinig BLE Transactions ------  
   syncAllPendingBLE(): Observable<SyncResult[]> {
@@ -84,7 +85,7 @@ export class SyncBleService {
 
       console.log(`Syncing BLE transaction: ${transaction.transactionId}`);
 
-      this.http.post<any>(`${this.api.syncBLE}/sync-ble`, syncRequest).subscribe({
+      this.network.post<any>(`${this.api.syncBLE}/sync-ble`, syncRequest).subscribe({
         next: (response) => {
           console.log(`BLE transaction synced successfully: `, response);
 

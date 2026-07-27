@@ -1,7 +1,7 @@
-import { HttpClient } from '@angular/common/http';
 import { Injectable } from '@angular/core';
 import { catchError, Observable, Subject, tap, throwError } from 'rxjs';
 import { ApiService } from './api';
+import { NetworkService } from './network';
 
 // Interface for create profile request
 interface CreateProfileRequest {
@@ -49,7 +49,7 @@ interface GetBalanceResponse {
 })
 export class UserService {
 
-  constructor(private http: HttpClient, private api: ApiService) {
+  constructor(private api: ApiService, private network: NetworkService) {
     console.log('UserService initialized');
   }
 
@@ -59,7 +59,7 @@ export class UserService {
     console.log('Creating user profile...',request.email);
 
     // Make POST request to backend
-    return this.http.post<CreateProfileResponse>(
+    return this.network.post<CreateProfileResponse>(
       `${this.api.user}/profile/create`,
       request                             // Request body
     ).pipe(
@@ -87,7 +87,7 @@ export class UserService {
     console.log('Getting profile for user: ', authUserId);
 
     // Make GET request to backend
-    return this.http.get<GetProfileResponse>(
+    return this.network.get<GetProfileResponse>(
       `${this.api.user}/profile/auth/${authUserId}`  // Full URL with user Id 
     )
     .pipe(
@@ -111,7 +111,7 @@ export class UserService {
     console.log('Getting wallet balance for profile: ', profileId);
 
     // Make GET request to backend
-    return this.http.get<GetBalanceResponse> (
+    return this.network.get<GetBalanceResponse> (
       `${this.api.user}/wallet/balance/${profileId}` //Full URL with profile Id
     )
     .pipe(
@@ -131,7 +131,7 @@ export class UserService {
 // ------ Get Profile by Upi Id ------  
   getProfileByUpiId(upiId: string): Observable<any> {
     console.log('Searching profile by UPI ID: ', upiId);
-    return this.http.get<any>(`${this.api.user}/profile/upi/${upiId}`);
+    return this.network.get<any>(`${this.api.user}/profile/upi/${upiId}`);
   }
 
 // ------ Helper Method 1: Save Profile to Localstorage ------

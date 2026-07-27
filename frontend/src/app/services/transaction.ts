@@ -1,7 +1,7 @@
-import { HttpClient } from '@angular/common/http';
 import { Injectable } from '@angular/core';
 import { catchError, Observable, take, tap, throwError } from 'rxjs';
 import { ApiService } from './api';
+import { NetworkService } from './network';
 
 // Interface for initiate transaction request
 interface InitiateTransactionRequest {
@@ -56,7 +56,7 @@ interface PublicKeyResponse {
 })
 export class TransactionService {
 
-  constructor(private http: HttpClient, private api: ApiService) {
+  constructor(private network: NetworkService, private api: ApiService) {
     console.log('TransactionService initialized');
   }
 
@@ -66,7 +66,7 @@ export class TransactionService {
     console.log("Initiating transaction...", request);
 
     // Make POST request to backend
-    return this.http.post<InitiateTransactionResponse>(
+    return this.network.post<InitiateTransactionResponse>(
       `${this.api.transaction}/initiate`, 
       request                  // request body
     ).pipe(
@@ -96,7 +96,7 @@ export class TransactionService {
     console.log('Getting public key for transaction:', transactionId);
 
     // Make GET request to backend
-    return this.http.get<PublicKeyResponse>(
+    return this.network.get<PublicKeyResponse>(
       `${this.api.transaction}/public-key/${transactionId}`
     ).pipe(
       tap(response => {
@@ -118,7 +118,7 @@ export class TransactionService {
     console.log('Completing transaction: ',request.transactionId);
 
     // Make POST request to backend
-    return this.http.post<CompleteTransactionResponse>(
+    return this.network.post<CompleteTransactionResponse>(
       `${this.api.transaction}/complete`,
       request                    // Request body with encrypted data
     ).pipe(
@@ -143,7 +143,7 @@ export class TransactionService {
 
 // ------ Method 4: Transaction History ------
   getTransactionHistory(profileId: number): Observable<any[]> {
-    return this.http.get<any[]>(
+    return this.network.get<any[]>(
       `${this.api.transaction}/history/profile/${profileId}`
     );
   }  
