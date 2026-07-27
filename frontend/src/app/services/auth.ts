@@ -2,6 +2,7 @@ import { HttpClient } from '@angular/common/http';
 import { Injectable } from '@angular/core';
 import { BehaviorSubject, catchError, Observable, tap } from 'rxjs';
 import { ApiService } from './api';
+import { NetworkService } from './network';
 
 // Interface for login response
 interface LoginResponse {
@@ -47,7 +48,7 @@ export class AuthService {
   private userSubject = new BehaviorSubject<any>(this.getUserFromStorage());
   public user$ = this.userSubject.asObservable();
 
-  constructor(private http: HttpClient , private api: ApiService) {
+  constructor(private http: HttpClient , private api: ApiService, private network: NetworkService) {
     console.log('AuthService initialized');
   }
 
@@ -57,7 +58,7 @@ export class AuthService {
     console.log('Registering user:', userData.email);
 
     // Make POST request to backend 
-    return this.http.post<RegisterResponse>(
+    return this.network.post<RegisterResponse>(
       `${this.api.auth}/register`, 
       userData            // Request body
     ).pipe(
@@ -77,7 +78,7 @@ export class AuthService {
     console.log('Logging in user: ', email);
 
     // Make POST request to backend
-    return this.http.post<LoginResponse>( `${this.api.auth}/login`,
+    return this.network.post<LoginResponse>( `${this.api.auth}/login`,
       {
         email: email,
         password: password
