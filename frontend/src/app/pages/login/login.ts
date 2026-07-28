@@ -70,10 +70,13 @@ export class LoginComponent implements OnInit{
         console.log('Upi Id: ', response.upiId);
 
         this.successMessage = 'Login successful! Loading profile...';
+        console.log("STEP 1 : Login API Success");
 
+        console.log("STEP 2 : Loading Profile...");
         this.userService.getProfile(response.userId).subscribe({
           next: (profile) => {
             console.log('Profile loaded after login: ', profile);
+            console.log("STEP 3 : Profile Loaded");
 
             localStorage.setItem('profileId', profile.profileId.toString());
             localStorage.setItem('name', profile.name);
@@ -82,14 +85,20 @@ export class LoginComponent implements OnInit{
             this.loading = false;
             this.successMessage = 'Login successful! Redirecting...';
 
+            console.log("STEP 4 : Navigating Dashboard");
             setTimeout(() => {
-              this.router.navigate(['/dashboard']);
+              this.router.navigate(['/dashboard']).then(result => {
+                console.log("STEP 5 :", result);
+              });
             }, 1000);
           },
 
           error: (error) => {
             console.log('Profile loading failed:', error);
-
+            console.log("Status:", error.status);
+            console.log("URL:", error.url);
+            console.log("Message:", error.message);
+            
             this.loading = false;
             this.errorMessage = 'Failed to load profile';
           }
