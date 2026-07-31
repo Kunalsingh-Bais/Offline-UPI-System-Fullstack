@@ -1,7 +1,8 @@
 import { Injectable } from '@angular/core';
-import { BehaviorSubject, Observable, timestamp } from 'rxjs';
-import { errorContext } from 'rxjs/internal/util/errorContext';
+import { BehaviorSubject, Observable} from 'rxjs';
 import { __await } from 'tslib';
+import { CapacitorBluetoothService } from './capacitor-bluetooth';
+import { Capacitor } from '@capacitor/core';
 
 export interface BLEDevice {
   id: string;
@@ -41,9 +42,33 @@ export class BluetoothService {
   private readonly CHARACTERISTIC_UUID = '87654321-4321-4321-4321-210987654321';   // Custom characteristics
   private readonly REQUEST_MTU = 512;   // Maximum Transmission Unit
 
-  constructor() {
+  constructor(private nativeBluetooth: CapacitorBluetoothService) {
+
+  // Browser → Web Bluetooth
+  if (!Capacitor.isNativePlatform()) {
     this.checkBluetoothSupport();
   }
+
+  // Native Android → Capacitor BLE
+  this.nativeBluetooth.devices$.subscribe(devices => {
+
+    if (!Capacitor.isNativePlatform()) {
+      return;
+    }
+
+    const bleDevices: BLEDevice[] = devices.map(device => ({
+      id: device.id,
+      name: device.name,
+      rssi: device.rssi,
+      connected: false,
+      lastSeen: new Date()
+    }));
+
+    this.deviceList$.next(bleDevices);
+
+    console.log("Native devices updated:", bleDevices.length);
+  });
+}
 
 // ------ Method 1: Check if device supports Web Bluetooth API ------  
   private checkBluetoothSupport(): void {
@@ -58,68 +83,31 @@ export class BluetoothService {
 
 // ------ Method 2: Scan for nearby Bluetooth devices ------
   async scanForDevices(): Promise<BLEDevice[]> {
-    if (!navigator.bluetooth) {
-      throw new Error('Bluetooth not supported');
-    }
 
-    try {
-      this.isScanning$.next(true);
-      console.log('Starting device scan...');
+    // Android
+    if (Capacitor.isNativePlatform()) {
+      await this.nativeBluetooth.initialize();
+      await this.nativeBluetooth.scan();
 
-      // Request device from user
-      const device = await navigator.bluetooth.requestDevice({
-        // Filter by our custom service UUID
-        acceptAllDevices: true,
-        // Allow user to see all devices (optional)
-        optionalServices: [this.SERVICE_UUID]
+      return new Promise(resolve => {
+        const sub = this.deviceList$.subscribe(devices => {
+          if (devices.length > 0) {
+            resolve(devices);
+            sub.unsubscribe();
+          }
+        });
+
+        // Stop scan after 10 seconds
+        setTimeout(async () => {
+          await this.nativeBluetooth.stopScan();
+
+          resolve(this.deviceList$.value);
+          sub.unsubscribe();
+        }, 10000);
       });
-
-      console.log('Device selected: ', device.name);
-
-      // Create Device object
-      const bleDevice: BLEDevice = {
-        id: device.id,
-        name: device.name || 'Unknown Device',
-        connected: false,
-        lastSeen: new Date()
-      };
-
-      // Update device list
-      const devices = this.deviceList$.value;
-      const existingIndex = devices.findIndex(d => d.id === bleDevice.id);
-
-      if(existingIndex > -1) {
-        devices[existingIndex] = bleDevice;
-      }
-      else {
-        devices.push(bleDevice);
-      }
-
-      this.deviceList$.next(devices);
-      console.log('Total devices found: ', devices.length);
-
-      return devices;
     }
-    catch(error: any) {
-      console.error('Scan error: ', error);
-
-      // User cancelled or error occurred
-      if(error.name === 'NotFoundError') {
-        console.warn('No compatible device found');
-      }
-      else if(error.name === 'NotAllowedError') {
-        console.warn('User cancelled device selection');
-      }
-      else {
-        throw error;
-      }
-
-      return [];
-    }
-    finally {
-      this.isScanning$.next(false);
-    }
-  }
+    return [];
+  }  
 
 // ------ Method 3: Connect to Bluetooth device ------
   async connectToDevice(deviceId: string): Promise<void> {
