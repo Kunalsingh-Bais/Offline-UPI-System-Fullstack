@@ -112,17 +112,35 @@ export class BluetoothService {
 // ------ Method 3: Connect to Bluetooth device ------
   async connectToDevice(deviceId: string): Promise<void> {
     try {
-      console.log('Connecting to device: ', deviceId);
-      this.connectionStatus$.next('connecting');
+      // ------ For Native Android BLE ------
+      // Uses Capacitor Bluetooth LE plugin for connection
+      if (Capacitor.isNativePlatform()) {
+        console.log('Connecting to device: ', deviceId);
+        this.connectionStatus$.next('connecting');
 
-      // Get the BluetoothDevice object
-      const devices = this.deviceList$.value;
-      const selectedDevice = devices.find(d => d.id === deviceId);
+        await this.nativeBluetooth.connect(deviceId);
 
-      if (!selectedDevice) {
-        throw new Error('Device not found in list');
+        // Get the BluetoothDevice object
+        const devices = this.deviceList$.value;
+        const selectedDevice = devices.find(d => d.id === deviceId);
+
+        if (selectedDevice) {
+          selectedDevice.connected = true;
+          this.device = selectedDevice;
+
+          this.connectedDevice$.next(selectedDevice);
+        }
+
+        this.isConnected$.next(true);
+        this.connectionStatus$.next("connected");
+
+        console.log("Connected to: ", deviceId);
+        return;
       }
 
+      // ------ For Browser Web bluetooth ------
+      // Uses Web Bluetooth API to connect to selected device
+      
       // Connect to GATT server
       const BluetoothDevices = await navigator.bluetooth?.getDevices();
       const device = BluetoothDevices.find(d => d.id === deviceId);
@@ -162,14 +180,19 @@ export class BluetoothService {
         );
       }
 
+      const selectedDevice = this.deviceList$.value.find(d => d.id === deviceId);
+
       // Update state
-      selectedDevice.connected = true;
-      this.device = selectedDevice;
-      this.connectedDevice$.next(selectedDevice);
+      if (selectedDevice) {
+        selectedDevice.connected = true;
+        this.device = selectedDevice;
+        this.connectedDevice$.next(selectedDevice);
+
+        console.log('Successfully connected to: ', selectedDevice.name);
+      }
+
       this.isConnected$.next(true);
       this.connectionStatus$.next('connected');
-
-      console.log('Successfully connected to: ', selectedDevice.name);
     }
     catch (error: any) {
       console.error('Connection error: ', error);
@@ -177,6 +200,7 @@ export class BluetoothService {
       throw new Error(`Connection failed: ${error.message}`);
     }
   }
+
 
 // ------ Method 4: Disconnect from device ------
   async disconnectDevice(): Promise<void> {
