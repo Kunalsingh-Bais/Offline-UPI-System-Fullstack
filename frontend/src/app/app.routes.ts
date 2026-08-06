@@ -9,6 +9,8 @@ import { TransactionHistoryComponent } from './pages/transaction-history/transac
 import { authGuard } from './guards/auth-guard';
 import { PendingTransactionsComponent } from './pages/pending-transactions/pending-transactions';
 import { BluetoothPaymentComponent } from './pages/bluetooth-payment/bluetooth-payment';
+import { BlePaymentReceiverComponent } from './pages/ble-payment-receiver/ble-payment-receiver';
+import { BleRoleSelectionComponent } from './pages/ble-role-selection/ble-role-selection';
 
 export const routes: Routes = [
   
@@ -34,7 +36,7 @@ export const routes: Routes = [
     {
         path: 'dashboard',
         component: DashboardComponent,
-        //canActivate: [authGuard]
+        canActivate: [authGuard]
     },
 
     {
@@ -62,9 +64,21 @@ export const routes: Routes = [
     },
 
     {
+        path: 'ble-role-selection',
+        component: BleRoleSelectionComponent,
+        canActivate: [authGuard]
+    },
+
+    {
         path: 'bluetooth-payment',
         component: BluetoothPaymentComponent,
-        
+        canActivate: [authGuard]
+    },
+
+    {
+        path: 'ble-payment-receiver',
+        component: BlePaymentReceiverComponent,
+        canActivate: [authGuard]
     },
 
   // ===== Redirects ===== 
