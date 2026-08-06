@@ -1,0 +1,87 @@
+<div class="min-h-screen bg-gradient-to-br from-blue-50 to-purple-100 flex items-center justify-center py-8 px-4">
+  
+  <div class="max-w-2xl w-full">
+    
+    <!-- Header -->
+    <div class="text-center mb-12">
+      <button (click)="goBack()" class="mb-6 flex items-center gap-2 px-4 py-2 text-blue-600 hover:text-blue-800 font-semibold transition mx-auto">
+        <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 19l-7-7 7-7"></path>
+        </svg>
+        Back to Dashboard
+      </button>
+
+      <h1 class="text-3xl font-bold text-gray-900 mb-3">🔵 Bluetooth Payment</h1>
+      <p class="text-l text-gray-600">What do you want to do?</p>
+    </div>
+
+    <!-- Role Selection Cards -->
+    <div class="grid grid-cols-1 sm:grid-cols-2 gap-6 mb-8">
+
+      <!-- Sender Card -->
+      <button (click)="selectSender()" 
+        [disabled]="isProcessing"
+        class="bg-white rounded-2xl shadow-lg p-8 text-center hover:shadow-2xl transition transform hover:scale-105
+        disabled:opacity-50 disabled:cursor-not-allowed active:scale-95">
+        
+        <!-- Icon -->
+        <div class="text-7xl mb-6 animate-bounce">📤</div>
+        
+        <!-- Title -->
+        <h2 class="text-3xl font-bold text-gray-900 mb-4">I'm Sending</h2>
+        
+        <!-- Description -->
+        <p class="text-gray-600 mb-6 text-lg">
+          Scan for nearby receivers and send them money via Bluetooth
+        </p>
+
+        <!-- CTA Button -->
+        <div class="inline-block px-8 py-3 bg-gradient-to-r from-blue-500 to-blue-600 
+          text-white rounded-lg font-bold text-lg hover:from-blue-600 hover:to-blue-700 transition">
+          {{ isProcessing ? '⏳ Loading...' : 'Send Money' }}
+        </div>
+      </button>
+
+      <!-- Receiver Card -->
+      <button (click)="selectReceiver()"
+        [disabled]="isProcessing"
+        class="bg-white rounded-2xl shadow-lg p-8 text-center hover:shadow-2xl transition transform hover:scale-105
+        disabled:opacity-50 disabled:cursor-not-allowed active:scale-95">
+        
+        <!-- Icon -->
+        <div class="text-7xl mb-6 animate-bounce">📥</div>
+        
+        <!-- Title -->
+        <h2 class="text-3xl font-bold text-gray-900 mb-4">I'm Receiving</h2>
+        
+        <!-- Description -->
+        <p class="text-gray-600 mb-6 text-lg">
+          Make your phone visible and receive money from nearby senders
+        </p>
+
+        <!-- CTA Button -->
+        <div class="inline-block px-8 py-3 bg-gradient-to-r from-green-500 to-green-600 
+          text-white rounded-lg font-bold text-lg hover:from-green-600 hover:to-green-700 transition">
+          {{ isProcessing ? '⏳ Loading...' : 'Receive Money' }}
+        </div>
+      </button>
+    </div>
+
+    <!-- Info Section -->
+    <div class="p-6 bg-gradient-to-r from-blue-50 to-purple-50 rounded-lg border-2 border-blue-200">
+      <p class="text-sm text-gray-900 leading-relaxed">
+        <strong>💡 How It Works:</strong> Bluetooth Payment enables secure peer-to-peer transfers between nearby phones. 
+        Payments are encrypted and stored offline, then automatically synced to your bank when you go online. 
+        No internet needed for the transaction!
+      </p>
+    </div>
+
+    <!-- Security Info -->
+    <div class="mt-6 p-4 bg-yellow-50 rounded-lg border-l-4 border-yellow-400">
+      <p class="text-xs text-yellow-900">
+        <strong>🔒 Security:</strong> All Bluetooth payments are encrypted with AES-256. 
+        Your UPI ID and transaction data are protected during transmission.
+      </p>
+    </div>
+  </div>
+</div>

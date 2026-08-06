@@ -1,0 +1,49 @@
+/* Bounce animation for icons */
+@keyframes bounce {
+  0%, 100% {
+    transform: translateY(0);
+  }
+  50% {
+    transform: translateY(-10px);
+  }
+}
+
+.animate-bounce {
+  animation: bounce 2s infinite;
+}
+
+/* Smooth transitions */
+button {
+  transition: all 0.3s ease-in-out;
+}
+
+button:active {
+  transform: scale(0.95);
+}
+
+/* Responsive adjustments */
+@media (max-width: 640px) {
+  .text-5xl {
+    font-size: 2.5rem;
+  }
+
+  .text-3xl {
+    font-size: 1.875rem;
+  }
+
+  .text-7xl {
+    font-size: 3rem;
+  }
+}
+
+/* Hover effects */
+button:hover:not(:disabled) {
+  transform: scale(1.05);
+  box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.1);
+}
+
+/* Focus state for accessibility */
+button:focus-visible {
+  outline: 2px solid #3b82f6;
+  outline-offset: 2px;
+}
