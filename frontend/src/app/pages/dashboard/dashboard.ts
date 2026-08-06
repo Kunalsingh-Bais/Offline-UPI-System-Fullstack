@@ -318,7 +318,7 @@ export class DashboardComponent implements OnInit{
 // ------ Method 11: Navigate to Bluetooth Payment ------
   goToBluetoothPayment(): void {
     console.log('Navigating to Bluetooth Payment...');
-    this.router.navigate(['/bluetooth-payment']);
+    this.router.navigate(['/ble-role-selection']);
   }  
 
 // ------ Method 12: Format currency ------
