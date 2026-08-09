@@ -2,9 +2,13 @@ import { CommonModule } from '@angular/common';
 import { ChangeDetectorRef, Component, OnDestroy, OnInit } from '@angular/core';
 import { FormsModule } from '@angular/forms';
 import { BLEDevice, BLEPayload, BluetoothService } from '../../services/bluetooth';
-import { Subject, takeUntil, timestamp } from 'rxjs';
+import { scan, Subject, takeUntil, timestamp } from 'rxjs';
 import { EncryptionService } from '../../services/encryption';
 import { IndexedDbService, PendingTransaction } from '../../services/indexed-db';
+import { Router } from '@angular/router';
+import { BluetoothPaymentBuilderService, EncryptedBLEPayload } from '../../services/bluetooth-payment-builder';
+import { BluetoothPayloadValidatorService } from '../../services/bluetooth-payload-validator';
+import { UserService } from '../../services/user';
 
 export interface BLETransaction {
   id?: string;
@@ -58,9 +62,12 @@ export class BluetoothPaymentComponent implements OnInit, OnDestroy {
   private destroy$ = new Subject<void>();
   private notificationTimeout: any;
 
-  constructor(private bluetoothService: BluetoothService, private encryptionService: EncryptionService, private indexedDbService: IndexedDbService, private cdr: ChangeDetectorRef) {}
+  constructor(private bluetoothService: BluetoothService, private encryptionService: EncryptionService, private indexedDbService: IndexedDbService, private cdr: ChangeDetectorRef, private router: Router,
+  private paymentBuilder: BluetoothPaymentBuilderService, private payloadValidator: BluetoothPayloadValidatorService, private userService: UserService) {}
 
   ngOnInit(): void {
+    // Show role selection screen on component load (Sender or Receiver)
+    this.currentPage = 'home';
     this.setupSubscriptions();
   }
 
@@ -156,7 +163,7 @@ export class BluetoothPaymentComponent implements OnInit, OnDestroy {
     }
   }  
 
-// ------ Connect to selected device ------  
+// ------ Method 1: Connect to selected device ------  
   async connectToDevice(device: BLEDevice): Promise<void> {
     try {
       this.isProcessing = true;
@@ -182,7 +189,7 @@ export class BluetoothPaymentComponent implements OnInit, OnDestroy {
     }
   }
   
-// ------ Device pairing with PIN ------
+// ------ Method 2: Device pairing with PIN ------
   async confirmPairingPin(): Promise<void> {
     const VALID_PIN = '1234';  // TODO: Generate and exchange securely
 
@@ -221,7 +228,7 @@ export class BluetoothPaymentComponent implements OnInit, OnDestroy {
     this.cdr.detectChanges();
   }  
 
-// ------ Send payment VIA bluetooth ------
+// ------ Method 3: Send payment VIA bluetooth ------
   async sendPaymentViaBluetooth(): Promise<void> {
     if (!this.connectedDevice) {
       this.showNotification('error', '❌ Device disconnected');
@@ -237,67 +244,104 @@ export class BluetoothPaymentComponent implements OnInit, OnDestroy {
       this.isProcessing = true;
       this.showNotification('info', `⏳ Processing ₹${this.paymentAmount}...`);
 
-      // Step 1: Create payment data
-      const paymentData = {
-        senderUPI: 'current-user-upi@upi',  // TODO: Get from auth service
-        receiverUPI: 'receiver-upi@upi', // Will be exchanged during pairing
-        amount: this.paymentAmount,
-        description: this.paymentDescription,
-        timestamp: Date.now(),
-        transactionHash: this.generateTransactionHash()
+      // Step 1: Get sender UPI from localStorage
+      const senderUPI = this.userService.getUpiIdFromStorage();
+
+      if (!senderUPI) {
+        this.showNotification('error', '❌ Sender UPI not found. Please login again.');
+        return;
+      }
+
+      // Step 2: Build plain payload (unsigned, with nonce)
+      const plainPayload = this.paymentBuilder.buildPayloadPlain(
+        senderUPI, 
+        'receiver-upi@bank',    // TODO: Get from device handshake
+        this.paymentAmount
+      );
+
+      // Step 3: Validate plain payload
+      const plainValidation = this.payloadValidator.validatePlainPayload(plainPayload);
+
+      if (!plainValidation.valid) {
+        this.payloadValidator.logValidationResults(plainValidation, 'Plain Payload');
+        const errorMsg = this.payloadValidator.getErrorMessage(plainValidation);
+        this.showNotification('error', `❌ Validation failed: ${errorMsg}`);
+        return;
+      }
+
+      // Step 4: Encrypt payload (includes signature generation)
+      const encryptedPayload = await this.paymentBuilder.encryptPayloadForBLE( 
+        plainPayload, 
+        'receiver-public-key-base64'   // TODO: Get from device handshake
+      );
+
+      // Step 5: Validate encrypted payload
+      const encryptedValidation = this.payloadValidator.validateEncryptedPayload(encryptedPayload);
+
+      if (!encryptedValidation.valid) {
+        this.payloadValidator.logValidationResults(encryptedValidation, 'Encrypted Payload');
+        const errorMsg = this.payloadValidator.getErrorMessage(encryptedValidation);
+        this.showNotification('error', `❌ Encryption validation failed: ${errorMsg}`);
+
+        return;
+      }
+
+      // Step 6: Format payload for BLE transmission
+      const formattedPayload = this.paymentBuilder.formatPayloadForBLE(encryptedPayload);
+
+      // Step 7: Check if payload needs chunking
+      let chunks = [formattedPayload];
+      if (formattedPayload.length > 450) {
+        console.warn('Payload exceeds 450 bytes, chunking...');
+        chunks = this.paymentBuilder.chunkPayload(formattedPayload);
+        this.showNotification('info', `⏳ Sending ${chunks.length} chunks...`);
+      }
+
+      // Step 8: Send via Bluetooth
+      await this.bluetoothService.sendPaymentData(formattedPayload);
+      console.log('Payment sent via Bluetooth');
+
+      // Step 9: Store as pending transaction in IndexedDB
+      const pendingTransaction: PendingTransaction = {
+        transactionId: `BLE_${plainPayload.nonce}`,
+        senderUpiId: plainPayload.senderUPI,
+        receiverUpiId: plainPayload.receiverUPI,
+        amount: plainPayload.amount,
+        description: `Ble Payment via ${this.connectedDevice.name}`,
+        encryptedData: formattedPayload, 
+        type: 'BLE',
+        status: 'PENDING',  // Will be SYNCING once ACK received
+        createdAt: new Date().toISOString(),
+        retryCount: 0,
+        nonce: plainPayload.nonce,
+        signature: encryptedPayload.signature,
+        payloadVersion: encryptedPayload.payloadVersion,
+        source: 'SENT',
+        isOffline: true
       };
 
-      console.log('Payment data: ', paymentData);
+      await this.indexedDbService.saveBLESentPayment(pendingTransaction);
+      console.log('Saved to IndexedDB');
 
-      // Step 2: Generate AES key
-      const aesKey = await this.encryptionService.generateAESKey();
-
-      // Step 3: Encrypt payment data
-      const encryptedData = await this.encryptionService.encryptData(aesKey,paymentData);
-
-      console.log('Payment encrypted');
-
-      // Step 4: Send via Bluetooth
-      await this.bluetoothService.sendPaymentData(encryptedData);
-      console.log('Payment sent');
-
-      // Step 5: Store as pending transaction
+      // Step 10: Update UI
       const bleTransaction: BLETransaction = {
         role: 'sender',
         remoteDeviceId: this.connectedDevice.id,
         remoteDeviceName: this.connectedDevice.name,
         amount: this.paymentAmount,
         description: this.paymentDescription,
-        encryptedData: encryptedData,
+        encryptedData: formattedPayload,
         status: 'sent',
-        transactionHash: paymentData.transactionHash,
+        transactionHash: plainPayload.nonce,
         createdAt: new Date().toISOString(),
         direction: 'outgoing'
       };
 
-      // Save to IndexedDB (with BLE prefix to differentiate)
-      const PendingTransaction: PendingTransaction = {
-        transactionId: `BLE_${paymentData.transactionHash}`,
-        senderUpiId: paymentData.senderUPI,
-        receiverUpiId: paymentData.receiverUPI,
-        amount: paymentData.amount,
-        description: `BLE Payment via ${this.connectedDevice.name}`,
-        encryptedData: encryptedData,
-        type: 'BLE',
-        status: 'PENDING',
-        createdAt: new Date().toISOString(),
-        retryCount: 0
-      };
-
-      await this.indexedDbService.savePendingTransaction(PendingTransaction);
-      console.log('Saved to IndexedDB');
-
-      // Show success
       this.currentTransaction = bleTransaction;
       this.currentPage = 'transaction';
-      this.showNotification('success', `✅ Payment Sent!\n\nAmount: ₹${this.paymentAmount}\nTo: ${this.connectedDevice.name}\n\n Waiting for confirmation...`);
+      this.showNotification('success', `✅ Payment Sent!\n\nAmount: ₹${this.paymentAmount}\nTo: ${this.connectedDevice.name}\n\nWaiting for confirmation...`);
 
-      // Wait for ACK from receiver
+      // Step 11: Wait for ACK
       this.waitForAcknowledgment();
     }
     catch(error: any) {
@@ -310,7 +354,7 @@ export class BluetoothPaymentComponent implements OnInit, OnDestroy {
     }
   }  
 
-// ------ Wait for payment acknowledgment ------
+// ------ Method 4: Wait for payment acknowledgment ------
   private waitForAcknowledgment(maxWait = 30000): void {
     const startTime = Date.now();
 
@@ -333,30 +377,99 @@ export class BluetoothPaymentComponent implements OnInit, OnDestroy {
     }, 500);
   }
 
-// ------ Handle incoming payment ------ 
+// ------ Method 5: Handle incoming payment ------ 
   // Receiver receives payment request
   private async handleIncomingPayment(payload: BLEPayload): Promise<void> {
     try {
       console.log('Processing incoming payment...');
 
-      // Store Encrypted data as it is 
-      // Backend will decrypt when syncing
+      // Step 1: Parse encrypted payload
+      let encryptedPayload: EncryptedBLEPayload;
 
+      try {
+        encryptedPayload = JSON.parse(payload.data);
+      }
+      catch (error) {
+        console.error('Failed to parse payload: ', error);
+        this.showNotification('error', '❌ Invalid payload format');
+        return;
+      }
+
+      // Step 2: Validate encrypted payload structure
+      const validation = this.payloadValidator.validateEncryptedPayload(encryptedPayload);
+
+      if (!validation.valid) {
+        this.payloadValidator.logValidationResults(validation, 'Received Payload');
+        const errorMsg = this.payloadValidator.getErrorMessage(validation);
+        this.showNotification('error', `❌ Invalid payload: ${errorMsg}`);
+
+        // Send rejection ACK
+        await this.bluetoothService.sendAcknowledgment(false, errorMsg);
+        return;
+      }
+ 
+      // Step 3: Decrypt and validate payload (checks nonce, signature, timestamp)
+      const decryptedPayload = await this.paymentBuilder. decryptAndValidatePayload(
+        encryptedPayload,
+        'sender-public-key-base64'  // TODO: Get from device handshake
+      );
+
+      // Step 4: Store encrypted data
+        // (IndexedDB stores encrypted, backend will decrypt on sync)
+      const receiverUPI = this.userService.getUpiIdFromStorage();
+
+      if (!receiverUPI) {
+        this.showNotification('error', 'Receiver UPI not found');
+        await this.bluetoothService.sendAcknowledgment(false, 'Receiver UPI not configured');
+        return;
+      }
+
+      const pendingTransaction: PendingTransaction = {
+        transactionId: `BLE_RCV_${decryptedPayload.nonce}`,
+        senderUpiId: decryptedPayload.senderUPI,
+        receiverUpiId: receiverUPI,
+        amount: decryptedPayload.amount,
+        description: `BLE Payment from ${this.connectedDevice?.name}`,
+        encryptedData: payload.data,  // Store encrypted data
+        type: 'BLE',
+        status: 'PENDING',
+        createdAt: new Date().toISOString(),
+        retryCount: 0,
+        nonce: decryptedPayload.nonce,
+        signature: encryptedPayload.signature,
+        payloadVersion: encryptedPayload.payloadVersion,
+        receivedAt: Date.now(),
+        source: 'RECEIVED',
+        isOffline: true
+      };
+
+      await this.indexedDbService.saveBLEReceivedPayment(pendingTransaction);
+      console.log('Saved received payment to IndexedDB');
+
+      // Step 5: Update UI
       this.currentPage = 'receive-payment';
       this.receivedPaymentRequest = payload;
 
       // Show generic message
-      this.showNotification('info', `💰 Payment Request Received\n\nFrom: ${this.connectedDevice?.name}\n\nConfirm to accept and save`);
+      this.showNotification('info', `💰 Payment Request Received\n\nFrom: ${decryptedPayload.senderUPI}\nAmount: ₹${decryptedPayload.amount}\n\nConfirm to accept`);
 
       this.cdr.detectChanges();
     }
     catch (error: any) {
       console.error('Error processing payment: ', error);
       this.showNotification('error', '❌ Failed to process payment');
+
+      // Send rejection ACK with error details
+      try {
+        await this.bluetoothService.sendAcknowledgment(false, error.message);
+      }
+      catch (ackError) {
+        console.error('Failed to send rejection ACK: ', ackError);
+      }
     }
   }  
 
-// ----- Receiver Confirms payment ------
+// ----- Method 6: Receiver Confirms payment ------
   async confirmReceivedPayment(accept: boolean): Promise<void> {
     if (!this.receivedPaymentRequest) return;
 
@@ -366,30 +479,15 @@ export class BluetoothPaymentComponent implements OnInit, OnDestroy {
       if(accept) {
         console.log('Receiver accepting payment');
 
-        // Just store encrypted data (Don't decrypt)
-        const PendingTransaction: PendingTransaction = {
-          transactionId: `BLE_RCV_${Date.now()}_${Math.random().toString(36).substring(7)}`,
-          senderUpiId: 'pending-verification', // Will be filled by backend
-          receiverUpiId: 'current-user@upi', // TODO: Get from auth service
-          amount: 0,
-          description: `BLE Received from ${this.connectedDevice?.name}`,
-          encryptedData: this.receivedPaymentRequest.data, // Store encrypted as it is
-          type: 'BLE',
-          status: 'PENDING',
-          createdAt: new Date().toISOString(),
-          retryCount: 0
-        };
+        // Parse the received encrypted payload
+        const encryptedPayload: EncryptedBLEPayload = JSON.parse(this.receivedPaymentRequest.data);
 
-        await this.indexedDbService.savePendingTransaction(PendingTransaction);
-        console.log('Saved received payment (encrypted) to IndexedDB');
-
-        // Send ACK back to sender
+        // Send ACK back to sender (with nonce for matching)
         await this.bluetoothService.sendAcknowledgment(true, 'Payment received and saved');
-
-        console.log('Sent confirmation to sender');
+        console.log('Sent ACK to sender');
 
         // Show generic success message
-        this.showNotification('success', `Payment Received!\n\nFrom: ${this.connectedDevice?.name}\n\nPayment saved locally.\n Will sync to backend when online. \nCheck dashboard for details.`);
+        this.showNotification('success', `✅ Payment Received!\n\nFrom: ${encryptedPayload.senderUPI}\nAmount: ₹\n\nPayment saved locally.\n Will sync to backend when online.`);
 
         if(this.currentTransaction) {
           this.currentTransaction.status = 'confirmed';
@@ -400,7 +498,7 @@ export class BluetoothPaymentComponent implements OnInit, OnDestroy {
 
         await this.bluetoothService.sendAcknowledgment(false, 'Payment rejected by receiver');
 
-        this.showNotification('error', 'Payment rejected');
+        this.showNotification('error', '❌ Payment rejected');
       }
 
       // Return to home after 3 seconds
@@ -418,7 +516,7 @@ export class BluetoothPaymentComponent implements OnInit, OnDestroy {
     }
   }  
 
-// ------ Handle Acknowledgment ------
+// ------ Method 7: Handle Acknowledgment ------
   private handleAcknowledgment(payload: BLEPayload): void {
     try {
       const ackData = JSON.parse(payload.data);
@@ -448,7 +546,7 @@ export class BluetoothPaymentComponent implements OnInit, OnDestroy {
     }
   } 
 
-// ------ Disconnect from device ------
+// ------ Method 8: Disconnect from device ------
   async disconnectDevice(): Promise<void> {
     try {
       await this.bluetoothService.disconnectDevice();
