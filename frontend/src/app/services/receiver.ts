@@ -2,6 +2,7 @@ import { Injectable } from '@angular/core';
 import { BLETransaction } from '../model/ble-transaction';
 import { Observable, Subject } from 'rxjs';
 import { BleCharacteristic } from '@capacitor-community/bluetooth-le';
+import { BluetoothKeyExchangeService } from './bluetooth-key-exchange';
 
 // Interface for start receiver request (to plugin)
 interface StartReceiverRequest {
@@ -54,7 +55,9 @@ export class ReceiverService {
   receiverStatus$ = this.receiverStatusSubject.asObservable();
   receiverError$ = this.receiverErrorSubject.asObservable();
 
-  constructor() {
+  private peerPublicKeyReceived = false;
+
+  constructor(private keyExchange: BluetoothKeyExchangeService) {
     console.log('ReceiverService initialized');
     this.initializePlugin();
   }
@@ -117,6 +120,10 @@ export class ReceiverService {
             // Start Listening for payment received events
             this.setupPaymentReceivedListener();
 
+            // Setup key exchange
+            console.log('Setting up key exchange listener');
+            this.setupKeyExchangeListener();
+
             observer.next(response);
           }
           else {
@@ -136,7 +143,7 @@ export class ReceiverService {
         observer.error(error);
       }
     });
-  }
+  }  
 
 // ------ Method 2: Stop Listening for Payments ------
   stopReceiving(): Observable<StopReceiverResponse> {
@@ -193,7 +200,63 @@ export class ReceiverService {
     });
   }  
 
-// ------ Method 3: Set Up Payment Received Listener ------
+// ------ Method 3: Setup Key Exchange Listener ------
+  private setupKeyExchangeListener(): void {
+    console.log('Setting up key exchange listener for receiver');
+
+    try {
+      const { OfflineBluetoothPlugin } = window as any;
+
+      if (!OfflineBluetoothPlugin) {
+        console.error('Plugin not available for key exchange listener');
+        return;
+      }
+
+      OfflineBluetoothPlugin.addListener('keyExchangeReceived', (event: any) =>{
+        console.log('Key exchange request received: ', event);
+
+        this.handleKeyExchangeRequest(event);
+      });
+    }
+    catch (error) {
+      console.error('Error setting up key exchange listener: ', error);
+    }
+  }  
+
+// ------ Method 4: Handle Key Exchange Request ------
+  private async handleKeyExchangeRequest(event: any): Promise<void> {
+    console.log('Processing key exchange request...');
+
+    try {
+      // Step 1: Parse sender's key exchange payload
+      const senderKeyData = this.keyExchange.parseKeyExchangePayload(event.payload);
+
+      // Step 2: Store sender's public key
+      await this.keyExchange.storePeerPublicKey(
+        event.deviceId || 'unknown',
+        event.deviceName || 'Unknown Device',
+        senderKeyData.publicKey
+      );
+
+      console.log('Sender public key stored');
+      this.peerPublicKeyReceived = true;
+
+      // Step 3: Send our public key back to sender
+      const ourKeyExchange = this.keyExchange.getKeyExchangePayload();
+
+      const { OfflineBluetoothPlugin } = window as any;
+      await OfflineBluetoothPlugin.sendKeyExchange(ourKeyExchange);
+
+      console.log('Our public key sent to sender');
+
+    } 
+    catch (error) {
+      console.error('Error handling key exchange: ', error);
+      this.receiverErrorSubject.next(`Key exchange failed: ${error}`);
+    }
+  }  
+
+// ------ Method 5: Set Up Payment Received Listener ------
   private setupPaymentReceivedListener(): void {
     console.log('Setting up payment received listener');
 
@@ -248,7 +311,7 @@ export class ReceiverService {
     }
   }  
 
-// ------ Method 4: Get received payments (from IndexedDB) ------  
+// ------ Method 6: Get received payments (from IndexedDB) ------  
   getReceivedPayments(): Observable<BLETransaction[]> {
     console.log('Fetching received payments');
 
@@ -264,7 +327,7 @@ export class ReceiverService {
     });
   }
 
-// ------ Method 5: Check if currently listening ------
+// ------ Method 7: Check if currently listening ------
   isCurrentlyListening(): boolean {
     return this.isListening;
   }  

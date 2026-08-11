@@ -9,6 +9,7 @@ import { Router } from '@angular/router';
 import { BluetoothPaymentBuilderService, EncryptedBLEPayload } from '../../services/bluetooth-payment-builder';
 import { BluetoothPayloadValidatorService } from '../../services/bluetooth-payload-validator';
 import { UserService } from '../../services/user';
+import { BluetoothKeyExchangeService } from '../../services/bluetooth-key-exchange';
 
 export interface BLETransaction {
   id?: string;
@@ -42,6 +43,9 @@ export class BluetoothPaymentComponent implements OnInit, OnDestroy {
   isScanning = false;
   isConnected = false;
   connectionStatus = 'disconnected';
+  scanError: string = ''; 
+  discoveredDevices: BLEDevice[] = [];
+  selectedDevice: BLEDevice[] | any = null;
 
   // Payment form
   paymentAmount = 0;
@@ -62,13 +66,19 @@ export class BluetoothPaymentComponent implements OnInit, OnDestroy {
   private destroy$ = new Subject<void>();
   private notificationTimeout: any;
 
+  // Key exchange
+  private keyExchangeInProgress = false;
+  private peerPublicKeyReceived = false;
+
   constructor(private bluetoothService: BluetoothService, private encryptionService: EncryptionService, private indexedDbService: IndexedDbService, private cdr: ChangeDetectorRef, private router: Router,
-  private paymentBuilder: BluetoothPaymentBuilderService, private payloadValidator: BluetoothPayloadValidatorService, private userService: UserService) {}
+  private paymentBuilder: BluetoothPaymentBuilderService, private payloadValidator: BluetoothPayloadValidatorService, private userService: UserService, private keyExchange: BluetoothKeyExchangeService) {}
 
   ngOnInit(): void {
     // Show role selection screen on component load (Sender or Receiver)
     this.currentPage = 'home';
     this.setupSubscriptions();
+
+    this.generateLocalKeyPair();
   }
 
 // ------ SETUP Observables ------  
@@ -139,16 +149,23 @@ export class BluetoothPaymentComponent implements OnInit, OnDestroy {
 
 // ------ Page 2: Scan for devices ------
   async startDeviceScan(): Promise<void> {
+    console.log('Starting device scan...');
+
     try {
-      this.isProcessing = true;
+      this.isScanning = true;
+      this.scanError = '';
+
       this.showNotification('info', '🔍 Scanning for nearby devices...');
 
+      // Scan for device
       const devices = await this.bluetoothService.scanForDevices();
 
       if (devices.length === 0) {
         this.showNotification('error', '❌ No devices found. Make sure Bluetooth is on.');
         return;
       }
+
+      this.discoveredDevices = devices;
 
       this.currentPage = 'scan';
       this.showNotification('success', `✅ Found ${devices.length} device(s)`);
@@ -158,7 +175,7 @@ export class BluetoothPaymentComponent implements OnInit, OnDestroy {
       this.showNotification('error', `❌ Scan failed: ${error.message}`);
     }
     finally {
-      this.isProcessing = false;
+      this.isScanning = false;
       this.cdr.detectChanges();
     }
   }  
@@ -167,20 +184,37 @@ export class BluetoothPaymentComponent implements OnInit, OnDestroy {
   async connectToDevice(device: BLEDevice): Promise<void> {
     try {
       this.isProcessing = true;
-      this.showNotification('info', `Connecting to ${device.name}...`);
+      this.selectedDevice = device;
+      this.showNotification('info', `⏳ Connecting to ${device.name}...`);
 
+      // Step 1: Connect to device
       await this.bluetoothService.connectToDevice(device.id);
 
       this.showNotification('success', `✅ Connected to ${device.name}`);
       this.connectedDevice = device;
 
-      // Move to pairing step
-      this.requiresPairing = true;
-      this.enteredPin = '';
-      this.pairingAttempts = 0;
+      // Step 2: Exchange keys with peer
+      await this.exchangeKeysWithPeer(device.id, device.name);
+
+      // Step 3: Keys exchanged, ready for payment
+      this.currentPage = 'send-payment';
+      this.showNotification('success', `✅ Secure Connection Ready!\n\nDevice: ${device.name}`);
+
+      this.cdr.detectChanges();
     }
     catch (error: any) {
-      console.error('Connection error: ', error);
+      console.error('Device selection error: ', error);
+
+      if (this.connectedDevice) {
+        try {
+          await this.bluetoothService.disconnectDevice();
+        }
+        catch (disconnectError) {
+          console.error('Error during disconnect: ', disconnectError);
+        }
+      }
+      this.connectedDevice = null;
+      this.selectedDevice = null;
       this.showNotification('error', `❌ Connection failed: ${error.message}`);
     }
     finally {
@@ -188,8 +222,91 @@ export class BluetoothPaymentComponent implements OnInit, OnDestroy {
       this.cdr.detectChanges();
     }
   }
+
+// ------ Method 2: Generate Local key pair ------  
+  private async generateLocalKeyPair(): Promise<void> {
+    console.log('Generating local key pair for this device...');
+
+    try {
+      await this.keyExchange.generateLocalKeyPair();
+      console.log('Local key pair generated and stored');
+    }
+    catch (error) {
+      console.error('Error generating local key pair: ', error);
+      this.showNotification('error', '❌ Failed to setup encryption')
+    }
+  }    
+
+// ------ Method 3: Exchange keys with peer ------
+  private async exchangeKeysWithPeer(deviceId: string, deviceName: string): Promise<void> {
+    console.log(`Exchange keys with ${deviceName}...`);
+
+    try {
+      this.keyExchangeInProgress = true;
+      this.peerPublicKeyReceived = false;
+
+      // Step 1: Send our public key to peer
+      const keyExchangePayload = this.keyExchange.getKeyExchangePayload();
+
+      console.log('Sending key exchange payload...');
+      await this.bluetoothService.sendKeyExchange(keyExchangePayload);
+      console.log('Key exchange payload sent');
+
+      // Step 2: Wait for Peer's public key
+      const peerKeyPayload = await this.waitForPeerKeyExchange();
+
+      // Step 3: Parse and store peer's public key
+      const peerKeyData = this.keyExchange.parseKeyExchangePayload(peerKeyPayload);
+
+      await this.keyExchange.storePeerPublicKey(deviceId, deviceName, peerKeyData.publicKey);
+
+      console.log('Peer public key stored');
+      this.peerPublicKeyReceived = true;
+      this.keyExchangeInProgress = false;
+    }
+    catch (error) {
+      console.error('Key exchange error: ', error);
+      this.keyExchangeInProgress = false;
+      this.peerPublicKeyReceived = false;
+      throw new Error(`Key exchange failed ${error}`)
+    }
+  }    
+
+// ------ Method 4: Wait for Peer Key Exchange ------  
+  private waitForPeerKeyExchange(timeoutMs: number = 10000): Promise<string> {
+    console.log('Waiting for peer key exchange...');
+
+    return new Promise((resolve, reject) => {
+      // Timeout after 10 seconds
+      const timeout = setTimeout(() => {
+        reject(new Error('Peer key exchange timeout (10s)'));
+      }, timeoutMs);
+
+      // Listen for incoming key exchange data
+      const subscription = this.bluetoothService.getReceivedData().subscribe({
+        next: (payload) => {
+          if (!payload) {
+            return;
+          }
+
+          if (payload.type === 'KEY_EXCHANGE') {
+            console.log('Received peer key exchange payload');
+            clearTimeout(timeout);
+            subscription.unsubscribe();
+            resolve(payload.data);
+          }
+        },
+        error: (error) => {
+          console.error('Error waiting for key exchange: ', error);
+          clearTimeout(timeout);
+          subscription.unsubscribe();
+          reject(error);
+        }
+      });
+    });
+  }
   
-// ------ Method 2: Device pairing with PIN ------
+// ------ Method 5: Device pairing with PIN ------
   async confirmPairingPin(): Promise<void> {
     const VALID_PIN = '1234';  // TODO: Generate and exchange securely
 
@@ -228,12 +345,20 @@ export class BluetoothPaymentComponent implements OnInit, OnDestroy {
     this.cdr.detectChanges();
   }  
 
-// ------ Method 3: Send payment VIA bluetooth ------
+// ------ Method 6: Send payment VIA bluetooth ------
   async sendPaymentViaBluetooth(): Promise<void> {
     if (!this.connectedDevice) {
       this.showNotification('error', '❌ Device disconnected');
       return;
     }
+
+    // Step 0: Verify we have peer's public key
+    if (!this.keyExchange.hasPeerKey(this.connectedDevice.id)) {
+      this.showNotification('error', '❌ Key exchange incomplete. Reconnect and try again.');
+      return;
+    }
+
+    console.log('Peer public key verified');
 
     if (!this.paymentAmount || this.paymentAmount <=0) {
       this.showNotification('error', '❌ Enter valid amount');
@@ -272,7 +397,7 @@ export class BluetoothPaymentComponent implements OnInit, OnDestroy {
       // Step 4: Encrypt payload (includes signature generation)
       const encryptedPayload = await this.paymentBuilder.encryptPayloadForBLE( 
         plainPayload, 
-        'receiver-public-key-base64'   // TODO: Get from device handshake
+        this.connectedDevice.id  // Device Id to get peer's public key
       );
 
       // Step 5: Validate encrypted payload
@@ -354,7 +479,7 @@ export class BluetoothPaymentComponent implements OnInit, OnDestroy {
     }
   }  
 
-// ------ Method 4: Wait for payment acknowledgment ------
+// ------ Method 7: Wait for payment acknowledgment ------
   private waitForAcknowledgment(maxWait = 30000): void {
     const startTime = Date.now();
 
@@ -377,11 +502,21 @@ export class BluetoothPaymentComponent implements OnInit, OnDestroy {
     }, 500);
   }
 
-// ------ Method 5: Handle incoming payment ------ 
+// ------ Method 8: Handle incoming payment ------ 
   // Receiver receives payment request
   private async handleIncomingPayment(payload: BLEPayload): Promise<void> {
     try {
       console.log('Processing incoming payment...');
+
+      // Step 0: Verify we have sender's public key
+      if (!this.connectedDevice) {
+        this.showNotification('error', '❌ Connection not established');
+        return;
+      }
+
+      if (!this.keyExchange.hasPeerKey(this.connectedDevice.id)) {
+        console.warn('Key not cached, peer key exchange may be in progress');
+      }
 
       // Step 1: Parse encrypted payload
       let encryptedPayload: EncryptedBLEPayload;
@@ -411,7 +546,7 @@ export class BluetoothPaymentComponent implements OnInit, OnDestroy {
       // Step 3: Decrypt and validate payload (checks nonce, signature, timestamp)
       const decryptedPayload = await this.paymentBuilder. decryptAndValidatePayload(
         encryptedPayload,
-        'sender-public-key-base64'  // TODO: Get from device handshake
+        this.connectedDevice?.id || 'unknown'  // actual device id to get sender's public key
       );
 
       // Step 4: Store encrypted data
@@ -469,7 +604,7 @@ export class BluetoothPaymentComponent implements OnInit, OnDestroy {
     }
   }  
 
-// ----- Method 6: Receiver Confirms payment ------
+// ------ Method 9: Receiver Confirms payment ------
   async confirmReceivedPayment(accept: boolean): Promise<void> {
     if (!this.receivedPaymentRequest) return;
 
@@ -516,7 +651,7 @@ export class BluetoothPaymentComponent implements OnInit, OnDestroy {
     }
   }  
 
-// ------ Method 7: Handle Acknowledgment ------
+// ------ Method 10: Handle Acknowledgment ------
   private handleAcknowledgment(payload: BLEPayload): void {
     try {
       const ackData = JSON.parse(payload.data);
@@ -546,7 +681,7 @@ export class BluetoothPaymentComponent implements OnInit, OnDestroy {
     }
   } 
 
-// ------ Method 8: Disconnect from device ------
+// ------ Method 11: Disconnect from device ------
   async disconnectDevice(): Promise<void> {
     try {
       await this.bluetoothService.disconnectDevice();
