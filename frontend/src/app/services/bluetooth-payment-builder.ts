@@ -2,6 +2,7 @@ import { Injectable } from '@angular/core';
 import { EncryptionService } from './encryption';
 import { NonceService } from './nonce';
 import { BLEPayloadPlain } from '../model/ble-transaction';
+import { BluetoothKeyExchangeService } from './bluetooth-key-exchange';
 
 // Interface for encrypted payload ready to send
 export interface EncryptedBLEPayload {
@@ -24,7 +25,7 @@ export class BluetoothPaymentBuilderService {
   private readonly HEADER_SIZE = 100;  // Reserved for metadata
   private readonly MAX_PAYLOAD_SIZE = this.MTU_SIZE - this.HEADER_SIZE;
 
-  constructor(private  encryptionService: EncryptionService, private nonceService: NonceService) {
+  constructor(private  encryptionService: EncryptionService, private nonceService: NonceService, private keyExchange: BluetoothKeyExchangeService) {
     console.log('PaymentBuilderService initialized');
   }
 
@@ -100,29 +101,38 @@ export class BluetoothPaymentBuilderService {
   }  
 
 // ------ Method 4: Encrypt Payload for BLe ------
-  async encryptPayloadForBLE(payload: BLEPayloadPlain, receiverPublicKeyBase64: string): Promise<EncryptedBLEPayload> {
+  async encryptPayloadForBLE(payload: BLEPayloadPlain, peerDeviceId: string): Promise<EncryptedBLEPayload> {
 
     console.log('Encrypting payload for BLE transmission...');
 
     try {
-      // Step 1: Generate signature
+      // Step 1: Get peer's actual public key from cache
+      const peerPublicKeyBase64 = this.keyExchange.getPeerPublicKeyBase64(peerDeviceId);
+
+      if (!peerPublicKeyBase64) {
+        throw new Error(`No public key found for device: ${peerDeviceId}`);
+      }
+
+      console.log('Peer public key retrieved');
+
+      // Step 2: Generate signature
       const signature = await this.generateSignature(payload);
 
-      // Step 2: Serialize payload to JSON
+      // Step 3: Serialize payload to JSON
       const payloadJSON = JSON.stringify(payload);
       console.log('Payload JSON size: ', payloadJSON.length, 'bytes');
 
-      // Step 3: Check if payload fits in BLE MTU
+      // Step 4: Check if payload fits in BLE MTU
       if (payloadJSON.length > this.MAX_PAYLOAD_SIZE) {
         console.warn('Payload exceeds max size, will be chunked');
       }
 
-      // Step 4: Encrypt payload (includes chunking)
+      // Step 5: Encrypt payload (includes chunking)
       const encryptedData = await this.encryptionService.encryptData(
         this.generateEncryptionKey(), {payloadJSON}
       );
 
-      // Step 5: Build encrypted payload structure
+      // Step 6: Build encrypted payload structure
       const encryptedPayload: EncryptedBLEPayload = {
         encryptedData: encryptedData,
         signature: signature,
@@ -264,8 +274,49 @@ export class BluetoothPaymentBuilderService {
 
     return {valid, errors};
   } 
+
+// ------ Method 9: Method for RSA Encryption (future enhancement) ------
+  // This can be used to encrypt sensitive parts with peer's RSA key
+  async encryptWithPeerRSAKey(data: string, peerDeviceId: string): Promise<string> {
+    console.log('Encrypting data with peer RSA public key...');
+
+    try {
+      const peerPublicKey = this.getPeerPublicKeyCryptoKey(peerDeviceId);
+
+      const dataBytes = new TextEncoder().encode(data);
+
+      const encryptedBytes = await crypto.subtle.encrypt(
+        {name: 'RSA-OAEP'},
+        peerPublicKey, 
+        dataBytes
+      ) as ArrayBuffer;
+
+      const encryptedBase64 = this.bytesToBase64(encryptedBytes);
+
+      console.log('Data encrypted with RSA');
+
+      return encryptedBase64;
+    }
+    catch (error) {
+      console.error('Error in RSA encryption: ', error);
+      throw new Error('Failed to encrypt with peer RSA key');
+    }
+  }  
   
 // ------ Helper Methods ------
+
+  // --- Get Peer Public key as CryptoKey ------
+  private getPeerPublicKeyCryptoKey(peerDeviceId: string): CryptoKey {
+    console.log('Getting peer public key as CryptoKey...');
+
+    const peerPublicKey = this.keyExchange.getPeerPublicKey(peerDeviceId);
+
+    if (!peerPublicKey) {
+      throw new Error(`No public key found for device: ${peerDeviceId}`);
+    }
+
+    return peerPublicKey;
+  }
 
   // --- generate a consistent encryption key ---
   private generateEncryptionKey(): Uint8Array {
@@ -282,6 +333,18 @@ export class BluetoothPaymentBuilderService {
     }
 
     return key;
+  }
+
+  // --- Convert ArrayBuffer to Base64 ---
+  private bytesToBase64(bytes: ArrayBuffer): string {
+    const byteArray = new Uint8Array(bytes);
+    let binaryString = '';
+
+    for (let i=0; i<byteArray.length; i++) {
+      binaryString += String.fromCharCode(byteArray[i]);
+    }
+
+    return btoa(binaryString);
   }
 
   // --- Convert base64 to hex ---
@@ -305,5 +368,5 @@ export class BluetoothPaymentBuilderService {
     }
 
     return btoa(binaryString);
-  }
+  } 
 }
