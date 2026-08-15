@@ -10,5 +10,10 @@ import lombok.NoArgsConstructor;
 public class BLESyncRequest {
     private String transactionId;
     private String encryptedData;  // Encrypted BLE transaction payload
-
+    private String signature;
+    private String nonce;
+    private Long timestamp;
+    private String senderUPI;
+    private String receiverUPI;
+    private Integer payloadVersion;
 }

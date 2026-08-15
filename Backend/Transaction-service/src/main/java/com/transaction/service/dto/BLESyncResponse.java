@@ -13,4 +13,5 @@ public class BLESyncResponse {
     private String message;
     private boolean success;
     private String timestamp;
+    private String backendTransactionId;  // Backend-generated ID for tracking
 }

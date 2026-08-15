@@ -30,4 +30,17 @@ public interface TransactionRepository extends JpaRepository<Transaction, Intege
 
     // Find transactions by status and sender
     List<Transaction> findByStatusAndSenderUpiId(String status, String senderUpiId);
+
+    // Find transactions by nonce (prevent duplicate)
+    Optional<Transaction> findByNonce(String nonce);
+
+    // Find all pending BLE transactions (not yet synced)
+    List<Transaction> findBySourceAndIsOfflineAndStatusOrderByCreatedAtDesc(String source, Boolean isOffline, String status);
+
+    // Find pending BLE sync by receiver UPI
+    List<Transaction> findByReceiverUpiIdAndSourceAndSyncedAtIsNull(String receiverUpiId, String source);
+
+    // Find transactions that need syncing
+    List<Transaction> findBySyncAttemptsLessThanAndIsOfflineAndStatusOrderByCreatedAtAsc(Integer maxAttempts, Boolean isOffline, String status);
+
 }
