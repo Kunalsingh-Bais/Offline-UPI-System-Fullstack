@@ -12,10 +12,9 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 
 import java.math.BigDecimal;
-import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.util.*;
-
+import java.util.concurrent.ConcurrentHashMap;
 
 @Service
 public class TransactionService {
@@ -34,6 +33,9 @@ public class TransactionService {
 
     @Autowired
     private UserServiceClient userServiceClient;
+
+    // simple idempotency
+    private static ConcurrentHashMap<String, Long> seenNonces = new ConcurrentHashMap<>();
 
     // ------ METHOD 1: INITIATE TRANSACTION ------
     public InitiateTransactionResponse initiateTransaction(InitiateTransactionRequest request) {
@@ -277,10 +279,37 @@ public class TransactionService {
         return transactionRepository.findBySenderProfileIdOrReceiverProfileIdOrderByCreatedAtDesc(profileId, profileId);
     }
 
-    // ------ Method 4: Sync BLE Transaction ------
+    // ------ Method 4: Dedup check (isFirstTime) ------
+    public boolean isFirstTime(String nonce) {
+        Long prev = seenNonces.putIfAbsent(nonce, System.currentTimeMillis());
+
+        if (prev == null) {
+            System.out.println("First time seeing nonce: " + nonce);
+            return true;  // First time
+        }
+        else {
+            System.out.println("DUPLICATE nonce detected: " + nonce);
+            return false;  // Duplicate
+        }
+    }
+
+    // ------ Method 5: Sync BLE Transaction ------
     public BLESyncResponse syncBLETransaction(BLESyncRequest request) {
+        System.out.println("[SERVICE] Processing BLE Sync Request: " + request.getTransactionId());
+
         try {
-            System.out.println("[SERVICE] Processing BLE Sync Request: " + request.getTransactionId());
+            // Step 0: Check if we have seen this nonce before
+            if (!isFirstTime(request.getNonce())) {
+                System.out.println("Duplicate payment detected");
+                return new BLESyncResponse(
+                        request.getTransactionId(),
+                        "DUPLICATE",
+                        "Payment already processed",
+                        false,
+                        System.currentTimeMillis() + "",
+                        null
+                );
+            }
 
             // Step 1: Validate Request
             if(request.getTransactionId() == null || request.getTransactionId().isEmpty()) {
