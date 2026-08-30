@@ -1,7 +1,12 @@
 package com.transaction.service.client;
 
 import io.github.resilience4j.circuitbreaker.annotation.CircuitBreaker;
+import lombok.AllArgsConstructor;
+import lombok.Getter;
+import lombok.NoArgsConstructor;
 import org.springframework.cloud.openfeign.FeignClient;
+import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 
@@ -19,7 +24,7 @@ public interface UserServiceClient {
     @CircuitBreaker(name = "userServiceCircuitBreaker", fallbackMethod = "getProfileByUpiIdFallback")
     Map<String, Object> getProfileByUpiId(@RequestBody Map<String, Object> request);
 
-    // Fallback for getProfileByUpiId
+    // --- Fallback for getProfileByUpiId ---
     default Map<String, Object> getProfileByUpiIdFallback(Map<String, Object> request, Exception ex) {
         Map<String, Object> fallbackResponse = new HashMap<>();
         fallbackResponse.put("success", false);
@@ -31,7 +36,7 @@ public interface UserServiceClient {
         return fallbackResponse;
     }
 
-    // Fallback for updateBalance
+    // --- Fallback for updateBalance ---
     default Map<String, Object> updateBalanceFallback(Map<String, Object> request, Exception ex) {
         Map<String, Object> fallbackResponse = new HashMap<>();
         fallbackResponse.put("success", false);
@@ -43,5 +48,24 @@ public interface UserServiceClient {
         System.err.println("Circuit Breaker Fallback Triggered: " + ex.getMessage());
 
         return fallbackResponse;
+    }
+
+    // --- Get user profile by UPI ID ---
+    @GetMapping("/user/profile/by-upi/{upiId}")
+    UserProfile getProfileByUPI(@PathVariable String upiId);
+
+    // --- User profile response ---
+    @NoArgsConstructor
+    @AllArgsConstructor
+    class UserProfile {
+        @Getter
+        public Integer profileId;
+        @Getter
+        public String upiId;
+        @Getter
+        public String name;
+        @Getter
+        public String email;
+        public String phoneNumber;
     }
 }
