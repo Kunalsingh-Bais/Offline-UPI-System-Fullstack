@@ -1,15 +1,38 @@
 import { Injectable } from '@angular/core';
 
+interface CryptoKeyPair {
+  publicKey: CryptoKey;
+  privateKey: CryptoKey;
+}
+
 @Injectable({
   providedIn: 'root',
 })
 
-// Purpose : Client-side encryption of payment data
 export class EncryptionService {
+
+  // For WiFi payment :-
+  // RSA configuration
+  private readonly RSA_ALGORITHM = 'RSA-OAEP';
+  private readonly SIGN_ALGORITHM = 'RSA-PSS';
+  private readonly KEY_SIZE = 4096;
+  private readonly HASH_ALGORITHM = 'SHA-256';
+
+  // Key storage
+  private localPrivateKeyBase64: string | null = null;
+  private localPublicKeyBase64: string | null = null;
+  private localKeyPair: CryptoKeyPair | null = null;
+
+  // Storage keys
+  private readonly PRIVATE_KEY_STORAGE = 'offline_upi_private_key';
+  private readonly PUBLIC_KEY_STORAGE = 'offline_upi_public_key';
 
   constructor() {
     console.log('EncryptionService initialized');
   }
+
+// ======== NORMAL UPI PAYMENT (workflow) ========  
+  // Purpose : Client-side encryption of payment data
 
 // ------ Method 1: Generate AES Key ------   
   generateAESKey(): Uint8Array {
@@ -215,6 +238,360 @@ export class EncryptionService {
       throw error;
     }
   }  
+
+
+// ======== OFFLINE WiFi PAYMENT (workflow) ========
+
+// ------ Method 1: Generate Local key pair ------
+  async generateLocalKeyPair(): Promise<void> {
+
+    console.log('Generating local RSA-4096 key pair...');
+
+    try {
+      const keyPair = await crypto.subtle.generateKey(
+        {
+          name: this.RSA_ALGORITHM,
+          modulusLength: this.KEY_SIZE,
+          publicExponent: new Uint8Array([1, 0, 1]),  // 65537
+          hash: this.HASH_ALGORITHM
+        },
+        true,  // extractable (needed to export)
+        ['encrypt', 'decrypt']
+      );
+
+      console.log('Key pair generated');
+      console.log('Algorithm: ' + this.RSA_ALGORITHM);
+      console.log('Key size: ' + this.KEY_SIZE + ' bits');
+
+      // Store in memory
+      this.localKeyPair = keyPair;
+
+      // Export and store
+      await this.exportAndStoreKeyPair(keyPair);
+
+      console.log('Key pair stored securely');
+
+    } catch (error: any) {
+      console.error('❌ Error generating key pair: ' + error.message);
+      throw new Error('Failed to generate key pair: ' + error.message);
+    }
+  }
+
+// ------ Method 2: Export and store Key pair ------
+  // Export key pair to Base64 and store in localStorage
+  private async exportAndStoreKeyPair(keyPair: CryptoKeyPair): Promise<void> {
+
+    console.log('Exporting and storing key pair...');
+
+    try {
+      // Export private key
+      const privateKeyJwk = await crypto.subtle.exportKey('jwk', keyPair.privateKey);
+      const privateKeyJson = JSON.stringify(privateKeyJwk);
+      this.localPrivateKeyBase64 = btoa(privateKeyJson);
+
+      // Export public key
+      const publicKeyJwk = await crypto.subtle.exportKey('jwk', keyPair.publicKey);
+      const publicKeyJson = JSON.stringify(publicKeyJwk);
+      this.localPublicKeyBase64 = btoa(publicKeyJson);
+
+      // Store in localStorage
+      try {
+        localStorage.setItem(this.PRIVATE_KEY_STORAGE, this.localPrivateKeyBase64);
+        localStorage.setItem(this.PUBLIC_KEY_STORAGE, this.localPublicKeyBase64);
+        console.log('Keys stored in localStorage');
+      } catch (e) {
+        console.warn('⚠️ Could not store in localStorage: ' + e);
+      }
+    } 
+    catch (error: any) {
+      console.error('❌ Error exporting keys: ' + error.message);
+      throw new Error('Failed to export keys: ' + error.message);
+    }
+  }
+
+// ------ Method 3: Load Keys from Storage ------
+  private loadKeysFromStorage(): void {
+
+    console.log('Loading keys from localStorage...');
+
+    try {
+      const privateKeyBase64 = localStorage.getItem(this.PRIVATE_KEY_STORAGE);
+      const publicKeyBase64 = localStorage.getItem(this.PUBLIC_KEY_STORAGE);
+
+      if (privateKeyBase64 && publicKeyBase64) {
+        this.localPrivateKeyBase64 = privateKeyBase64;
+        this.localPublicKeyBase64 = publicKeyBase64;
+        console.log('Keys loaded from localStorage');
+      } else {
+        console.log('No stored keys found, will need to generate');
+      }                         
+    } 
+    catch (error: any) {
+      console.warn('⚠️ Error loading keys: ' + error.message);
+    }
+  }  
+
+// ------ Method 4: Get Private key ------
+  async getPrivateKey(): Promise<string> {
+
+    console.log('Getting private key...');
+
+    if (!this.localPrivateKeyBase64) {
+      console.warn('⚠️ No private key found, generating...');
+      await this.generateLocalKeyPair();
+    }
+
+    if (!this.localPrivateKeyBase64) {
+      throw new Error('Failed to get private key');
+    }
+
+    console.log('✅ Private key retrieved');
+
+    return this.localPrivateKeyBase64;
+  }  
+
+// ------ Method 5: Get Public key ------
+  async getPublicKey(): Promise<string> {
+
+    console.log('Getting public key...');
+
+    if (!this.localPublicKeyBase64) {
+      console.warn('⚠️ No public key found, generating...');
+      await this.generateLocalKeyPair();
+    }
+
+    if (!this.localPublicKeyBase64) {
+      throw new Error('Failed to get public key');
+    }
+
+    console.log('Public key retrieved');
+    console.log('Size: ' + this.localPublicKeyBase64.length + ' bytes (base64)');
+
+    return this.localPublicKeyBase64;
+  }
+
+// ------ Method 6: Encrypt with Public key ------
+  // Encrypt with receiver's PUBLIC key
+  async encryptWithPublicKey(plaintext: string, publicKeyBase64: string): Promise<string> {
+
+    console.log('Encrypting with public key (RSA-OAEP)...');
+
+    try {
+      // Step 1: Decode Base64 public key
+      const publicKeyJson = atob(publicKeyBase64);
+      const publicKeyJwk = JSON.parse(publicKeyJson);
+
+      console.log('Public key decoded');  
+
+      // Step 2: Import as CryptoKey
+      const publicKey = await crypto.subtle.importKey(
+        'jwk',
+        publicKeyJwk,
+        {
+          name: this.RSA_ALGORITHM,
+          hash: this.HASH_ALGORITHM
+        },
+        false,
+        ['encrypt']
+      );
+
+      console.log('Public key imported');
+
+      // Step 3: Convert plaintext to bytes
+      const plaintextBytes = new TextEncoder().encode(plaintext);
+      console.log('   Plaintext size: ' + plaintextBytes.length + ' bytes');
+
+      // Step 4: Encrypt with RSA-OAEP
+      const encryptedArrayBuffer = await crypto.subtle.encrypt(
+        this.RSA_ALGORITHM,
+        publicKey,
+        plaintextBytes
+      );
+
+      console.log('Encryption successful');
+
+      // Step 5: Convert to Base64 for transmission
+      const encryptedBytes = new Uint8Array(encryptedArrayBuffer);
+      const encryptedBase64 = this.bytesToBase64(encryptedBytes);
+
+      console.log('   Ciphertext size: ' + encryptedBase64.length + ' bytes (base64)');
+      console.log('   Compression: ' + ((encryptedBase64.length / plaintextBytes.length) * 100).toFixed(1) + '%');
+
+      return encryptedBase64;
+    } 
+    catch (error: any) {
+      console.error('❌ Encryption failed: ' + error.message);
+      throw new Error('Failed to encrypt with public key: ' + error.message);
+    }
+  }
+
+// ------ Method 7: Decrypt with Private key ------
+  async decryptWithPrivateKey(ciphertextBase64: string, privateKeyBase64: string): Promise<string> {
+
+    console.log('Decrypting with private key (RSA-OAEP)...');
+
+    try {
+      // Step 1: Decode Base64 private key
+      const privateKeyJson = atob(privateKeyBase64);
+      const privateKeyJwk = JSON.parse(privateKeyJson);
+
+      console.log('Private key decoded');  
+
+      // Step 2: Import as CryptoKey
+      const privateKey = await crypto.subtle.importKey(
+        'jwk',
+        privateKeyJwk,
+        {
+          name: this.RSA_ALGORITHM,
+          hash: this.HASH_ALGORITHM
+        },
+        false,
+        ['decrypt']
+      );
+
+      console.log('Private key imported');
+
+      // Step 3: Decode Base64 ciphertext
+      const ciphertextBytes = this.base64ToBytes(ciphertextBase64);
+      console.log('   Ciphertext size: ' + ciphertextBytes.length + ' bytes');
+
+      const bufferToDecrypt = new Uint8Array(ciphertextBytes);
+
+      // Step 4: Decrypt with RSA-OAEP
+      const decryptedArrayBuffer = await crypto.subtle.decrypt(
+        this.RSA_ALGORITHM,
+        privateKey,
+        bufferToDecrypt
+      );
+
+      console.log('✅ Decryption successful');
+
+      // Step 5: Convert bytes to string
+      const plaintext = new TextDecoder().decode(decryptedArrayBuffer);
+
+      console.log('   Plaintext size: ' + plaintext.length + ' bytes');
+
+      return plaintext;
+    } 
+    catch (error: any) {
+      console.error('❌ Decryption failed: ' + error.message);
+      throw new Error('Failed to decrypt with private key: ' + error.message);
+    }
+  }  
+
+// ------ Method 8: Sign data with Private key ------
+  // Sign with sender's PRIVATE key
+  async signData(data: string): Promise<string> {
+
+    console.log('Signing data with private key (RSA-PSS)...');
+
+    try {
+      // Step 1: Get or generate private key
+      const privateKeyBase64 = await this.getPrivateKey();
+
+      // Step 2: Decode and import private key
+      const privateKeyJson = atob(privateKeyBase64);
+      const privateKeyJwk = JSON.parse(privateKeyJson);
+      
+      const privateKey = await crypto.subtle.importKey(
+        'jwk',
+        privateKeyJwk,
+        {
+          name: this.SIGN_ALGORITHM,
+          hash: this.HASH_ALGORITHM
+        },
+        false,
+        ['sign']
+      );
+
+      console.log('Private key imported for signing');
+
+      // Step 3: Convert data to bytes
+      const dataBytes = new TextEncoder().encode(data);
+      console.log('   Data size: ' + dataBytes.length + ' bytes');
+
+      // Step 4: Sign with RSA-PSS
+      const signatureArrayBuffer = await crypto.subtle.sign(
+        {
+          name: this.SIGN_ALGORITHM,
+          saltLength: 32
+        },
+        privateKey,
+        dataBytes
+      );
+
+      console.log('✅ Signing successful');
+
+      // Step 5: Convert to Base64
+      const signatureBytes = new Uint8Array(signatureArrayBuffer);
+      const signatureBase64 = this.bytesToBase64(signatureBytes);
+
+      console.log('Signature size: ' + signatureBase64.length + ' bytes (base64)');
+
+      return signatureBase64;
+
+    } catch (error: any) {
+      console.error('❌ Signing failed: ' + error.message);
+      throw new Error('Failed to sign data: ' + error.message);
+    }
+  }
+  
+// ------ Method 9: Verify signature with Public key ------
+  // Verify RSA-PSS signature using sender's public key
+  async verifySignature(data: string, signatureBase64: string, publicKeyBase64: string): Promise<boolean> {
+
+    console.log('Verifying signature with public key (RSA-PSS)...');
+
+    try {
+      // Step 1: Decode and import public key
+      const publicKeyJson = atob(publicKeyBase64);
+      const publicKeyJwk = JSON.parse(publicKeyJson);
+      
+      const publicKey = await crypto.subtle.importKey(
+        'jwk',
+        publicKeyJwk,
+        {
+          name: this.SIGN_ALGORITHM,
+          hash: this.HASH_ALGORITHM
+        },
+        false,
+        ['verify']
+      );
+
+      console.log('Public key imported for verification');
+
+      // Step 2: Convert data to bytes
+      const dataBytes = new TextEncoder().encode(data);
+
+      // Step 3: Decode signature
+      const signatureBytes = this.base64ToBytes(signatureBase64);
+      const bufferToVerify = new Uint8Array(signatureBytes);
+
+      // Step 4: Verify signature with RSA-PSS
+      const isValid = await crypto.subtle.verify(
+        {
+          name: this.SIGN_ALGORITHM,
+          saltLength: 32
+        },
+        publicKey,
+        bufferToVerify,
+        dataBytes
+      );
+
+      if (isValid) {
+        console.log('✅ Signature VALID - data integrity confirmed');
+      } else {
+        console.log('❌ Signature INVALID - data may be tampered');
+      }
+
+      return isValid;
+    } 
+    catch (error: any) {
+      console.error('❌ Signature verification error: ' + error.message);
+      return false;
+    }
+  }
+
 
 // ------ Helper methods ------
   
