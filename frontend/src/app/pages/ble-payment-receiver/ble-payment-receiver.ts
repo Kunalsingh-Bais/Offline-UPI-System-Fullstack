@@ -1,431 +1,503 @@
+import { Component, OnInit, OnDestroy, ChangeDetectorRef, ChangeDetectionStrategy } from '@angular/core';
 import { CommonModule } from '@angular/common';
-import { ChangeDetectorRef, Component, OnDestroy, OnInit } from '@angular/core';
-import { Router, RouterModule } from '@angular/router';
-import { Subject, takeUntil } from 'rxjs';
-import { ReceiverService } from '../../services/receiver';
+import { Router } from '@angular/router';
+import { Subject } from 'rxjs';
+import { takeUntil, timestamp } from 'rxjs/operators';
 import { UserService } from '../../services/user';
 import { IndexedDbService, PendingTransaction } from '../../services/indexed-db';
-import { BLETransaction } from '../../model/ble-transaction';
-
-// Combined format for display
-export interface DisplayedReceivedPayment {
-  id: string;
-  senderUPI: string;
-  amount: number;
-  timestamp: number;
-  dateTime: string;
-  status: 'SYNCED' | 'SYNCING' | 'SYNCED_BACKEND' | 'FAILED';
-  statusLabel: string;
-}
+import { BluetoothPayloadValidatorService } from '../../services/bluetooth-payload-validator';
+import { RelayPayload, WifiRelayService } from '../../services/wifi-relay';
+import { HttpClient } from '@angular/common/http';
+import { BluetoothPaymentBuilderService } from '../../services/bluetooth-payment-builder';
+import { EncryptionService } from '../../services/encryption';
 
 @Component({
-  selector: 'app-ble-payment-receiver',
+  selector: 'app-ble-receiver',
   standalone: true,
-  imports: [CommonModule, RouterModule],
+  imports: [CommonModule],
   templateUrl: './ble-payment-receiver.html',
-  styleUrl: './ble-payment-receiver.css',
+  styleUrls: ['./ble-payment-receiver.css'],
+  changeDetection: ChangeDetectionStrategy.OnPush
 })
-export class BlePaymentReceiverComponent implements OnInit, OnDestroy{
+export class BlePaymentReceiverComponent implements OnInit, OnDestroy {
 
-  // Properties :
-  isListening = false;
+  // Properties: 
+  userUPI: string = '';
+  isListening: boolean = false;
+  receiverUPI: string = '';
+  isLocalServerRunning: boolean = false;
+  pendingPayments: any[] = [];
+
+  // UI state
   isLoading = false;
-  errorMessage = '';
-  successMessage = '';
-
-  userUpiId: string | null = null;
-  username: string | null = null;
-  walletBalance: number | null = null;
-  profileId: number | null = null;
-
-  // Received payments list
-  receivedPayments: DisplayedReceivedPayment[] = [];
   loadingPayments = false;
-  paymentStats = {
-    totalReceived: 0,
-    totalAmount: 0,
-    pendingSync: 0
-  };
+  message: string = '';
+  messageType: 'success' | 'error' | 'info' = 'info';
+  isPolling: boolean = false;
+  isSyncing: boolean = false; 
+  syncProgress: boolean = false;
+  isDecrypting: boolean = false;
 
-  // For unsubscribing
+  // Local IP shown to sender devices
+  private localIp: string = '';
+
+  paymentTab: 'received' | 'pending' = 'received'; 
+  receivedPayments: any[] = [];
+  processedNonces: Set<string> = new Set();
+
+  private pollingInterval: any;
+  
   private destroy$ = new Subject<void>();
+  private pollingSubscription: any;
 
-  constructor(private receiverService: ReceiverService, private userService: UserService, private indexedDbService: IndexedDbService, private router: Router, private cdr: ChangeDetectorRef ) {}
+  constructor(
+    private userService: UserService,
+    private indexedDbService: IndexedDbService,
+    private paymentValidatorService: BluetoothPayloadValidatorService,
+    private router: Router,
+    private wifiRelayService: WifiRelayService,
+    private http: HttpClient,
+    private cdr: ChangeDetectorRef,
+    private paymentBuilder: BluetoothPaymentBuilderService,
+    private encryptionService: EncryptionService,
+  ) {}
 
-  async ngOnInit(): Promise<void> {
-    console.log('BlePaymentReceiverComponent initialized');
+  ngOnInit(): void {
+    console.log('BleReceiverComponent initialized');
+    this.receiverUPI = this.userService.getUpiIdFromStorage() || '';
+    this.userUPI = this.receiverUPI;
+    this.setupAutoSync();
+    this.loadAllReceivedPayments();
+    this.loadPendingPayments();
 
-    try {
-      await this.indexedDbService.openDb();
-      console.log('IndexedDB initialized');
-    }
-    catch(error) {
-      console.error('IndexedDB error: ', error);
-      this.errorMessage = 'Failed to initialize local storage';
-    }
-
-    this.loadUserInfo();
-    await this.loadReceivedPayments();
-    this.setupListeners();
+    // Attempt to determine a best-effort local hostname/IP for display
+    this.localIp = this.resolveLocalIp();
   }
 
   ngOnDestroy(): void {
-    console.log('ReceiverModeComponent destroyed');
-
-    // Stop listening if active
-    if (this.isListening) {
-      this.stopReceiving();
-    }
-
-    // Unsubscribe all
+    this.startPollingServer();
     this.destroy$.next();
     this.destroy$.complete();
   }
 
-// ------ Method 1: Load user info ------  
-  private loadUserInfo(): void {
-    console.log('Loading user info for receiver mode...');
-
-    this.userUpiId = this.userService.getUpiIdFromStorage();
-    this.username = this.userService.getUserNameFromStorage();
-    this.profileId = this.userService.getProfileIdFromStorage();
-
-    if (!this.userUpiId) {
-      console.error('No UPI ID found');
-      this.errorMessage = 'No UPI ID found. Please setup your profile.';
-    }
-
-    console.log('User info loaded: ', this.userUpiId);
+// ----- UI helpers -----
+  getReceiverStatusText(): string {
+    return this.isListening ? '🟢 Listening' : '⚪ Not listening';
   }
 
-// ------ Method 2: Start receiving payments ------  
-  startReceiving(): void {
-    console.log('Starting to receive payments...');
-
-    if (!this.userUpiId) {
-      this.errorMessage = 'No UPI ID found. Cannot start receiver.';
-      return;
+  formatCurrency(amount: number): string {
+    try {
+      const v = Number(amount) || 0;
+      return '₹' + v.toFixed(2);
+    } catch {
+      return '₹0.00';
     }
+  }
 
-    if (this.isListening) {
-      this.errorMessage = 'Already listening for payments';
-      return;
+  extractName(upi: string): string {
+    if (!upi) return 'Unknown';
+    const parts = upi.split('@');
+    return parts[0] || upi;
+  }
+
+  getStatusBadgeClass(status: string): string {
+    switch ((status || '').toLowerCase()) {
+      case 'received':
+      case 'confirmed':
+        return 'bg-green-100 text-green-800';
+      case 'failed':
+        return 'bg-red-100 text-red-800';
+      case 'pending':
+        return 'bg-yellow-100 text-yellow-800';
+      default:
+        return 'bg-gray-100 text-gray-800';
     }
+  }
 
-    this.isLoading = true;
-    this.errorMessage = '';
-    this.successMessage = '';
+  get paymentStats() {
+    const totalReceived = this.receivedPayments.length;
+    const totalAmount = this.receivedPayments.reduce((s, p) => s + (Number(p.amount) || 0), 0);
+    const pendingSync = this.receivedPayments.filter((p) => p.status === 'PENDING' || p.status === 'RECEIVED' || p.status === 'SYNCING').length;
+    return { totalReceived, totalAmount, pendingSync };
+  }
 
-    this.receiverService.startReceiving(this.userUpiId).subscribe({
-      next: (response) => {
-        console.log('Receiver started successfully: ', response);
+  async refreshPayments(): Promise<void> {
+    this.loadingPayments = true;
+    try {
+      await this.loadAllReceivedPayments();
+      await this.loadPendingPayments();
+    } finally {
+      this.loadingPayments = false;
+      this.cdr.detectChanges();
+    }
+  }
 
-        if (response.success) {
-          this.isListening = true;
-          this.successMessage = '✅ Listening for payments! Your phone is visible to nearby senders.';
+  async clearSyncedPayments(): Promise<void> {
+    try {
+      await this.indexedDbService.clearBLESyncedPayments();
+      await this.loadAllReceivedPayments();
+      this.cdr.detectChanges();
+    } catch (err) {
+      console.error('Error clearing synced payments', err);
+    }
+  }
 
-          // Clear error
-          this.errorMessage = '';
-        }
-        else {
-          this.errorMessage = response.message || 'Failed to start receiver';
-          this.isListening = false;
-        }
+// ------ Method 1: Start Listening ------
+  async startListening(): Promise<void> {
+    
+    console.log('Starting WiFi receiver...');
+    
+    try {
+      // Start local server
+      this.wifiRelayService.startLocalServer();
+      this.isListening = true;
+      this.isLocalServerRunning = true;
+      this.isPolling = true;
 
-        this.isLoading = false;
-        this.cdr.detectChanges();
-      },
+      this.showMessage(`✅ Ready to Receive!\n\nYour UPI: ${this.receiverUPI}\n\nListening for encrypted payments...`, 'success');
 
-      error: (error) => {
-        console.error('Error starting receiver: ', error);
-        this.errorMessage = error?.message || 'Failed to start listening for payments';
-        this.isListening = false;
-        this.isLoading = false;
-        this.cdr.detectChanges();
-      }
-    });
-  }  
+      // Load initial payments from server
+      console.log('Loading pending payments...');
+      await this.loadPendingPaymentsFromServer();
 
-// ------ Method 3: Stop receiving payments ------
-  stopReceiving(): void {
-    console.log('Stopping receiver mode...');
+      // Setup listeners
+      this.listenForUpcomingPayments();
 
+      // Poll server every 2 seconds for new payments
+      this.startPollingServer();
+
+      this.cdr.detectChanges();
+    } 
+    catch (error: any) {
+      console.error('Listen error: ', error);
+      this.showMessage('❌ Failed to start receiver: ' + error.message, 'error');
+      this.isListening = false;
+      this.isLocalServerRunning = false;
+      this.isPolling = false;
+      this.cdr.detectChanges();
+    }
+  }
+
+// ------ Method 2: Listen for Payments ------
+  private listenForUpcomingPayments(): void {
+    
+    console.log('Setting up payment listener.');
+
+    this.wifiRelayService.paymentReceived$
+    .pipe(takeUntil(this.destroy$))
+      .subscribe((payload: RelayPayload) => {
+        this.processIncomingPayment(payload);
+      }); 
+  }
+
+// ------ Method 3: Process incoming payment ------
+  private async processIncomingPayment(payload: RelayPayload): Promise<void> {
+    console.log('Processing incoming payment from: ' + payload.senderUPI);
+
+    // Check if receiver is listening
     if (!this.isListening) {
-      this.errorMessage = 'Not currently listening';
+      console.error('Receiver is not listening, rejecting payment');
+      this.showMessage('❌ Receiver not listening - payment rejected', 'error');
       return;
     }
-
-    this.isLoading = true;
-    this.successMessage = '';
-
-    this.receiverService.stopReceiving().subscribe({
-      next: (response) => {
-        console.log('Receiver stopped: ', response);
-
-        if (response.success) {
-          this.isListening = false;
-          this.successMessage = '⏹️ Stopped listening for payments.';
-          this.errorMessage = '';
-        }
-        else {
-          this.errorMessage = response.message || 'Failed to stop receiver';
-        }
-
-        this.isLoading = false;
-        this.cdr.detectChanges();
-      },
-
-      error: (error) => {
-        console.error('Error stopping receiver: ', error);
-        this.errorMessage = error?.message || 'Failed to stop listening';
-        this.isLoading = false;
-        this.cdr.detectChanges();
-      }
-    });
-  }  
-
-// ------ Method 4: Setup Listeners from ReceiverService ------
-  private setupListeners(): void {
-    console.log('Setting up listeners...');
-
-    // Listen for payment received events
-    this.receiverService.paymentReceived$.pipe(
-      takeUntil(this.destroy$)).subscribe({
-        next: (transaction: BLETransaction) => {
-          console.log('Payment received event: ', transaction);
-
-          this.onPaymentReceived(transaction);
-          this.cdr.detectChanges();
-        },
-        error: (error) => {
-          console.error('Error in payment received listener: ', error);
-        }
-      });
-
-    // Listen for receiver status changes  
-    this.receiverService.receiverStatus$.pipe(
-      takeUntil(this.destroy$)).subscribe({
-        next: (status) => {
-          console.log('Receiver status: ', status);
-          this.successMessage = status.message;
-          this.cdr.detectChanges();
-        }, 
-        error: (error) => {
-          console.error('Error in status listener: ', error);
-        }
-      });  
-
-    // Listen for receiver error
-    this.receiverService.receiverError$.pipe(
-      takeUntil(this.destroy$)).subscribe({
-        next: (error) => {
-          console.error('Receiver error: ', error);
-          this.errorMessage = error;
-          this.cdr.detectChanges();
-        },
-        error: (err) => {
-          console.error('Error in error listener: ', err);
-        }
-      });
-  }
-
-// ------ Method 5: Handle Payment received ------
-  private async onPaymentReceived(transaction: BLETransaction): Promise<void> {
-    console.log('Processing received payment...');
 
     try {
-      // Save to IndexedDB
-      const pendingTransaction: PendingTransaction = {
-        transactionId: transaction.id,
-        senderUpiId: transaction.senderUPI,
-        receiverUpiId: transaction.receiverUPI,
-        amount: transaction.amount,
-        encryptedData: transaction.encryptedPayload,
-        status: 'PENDING',  // Pending sync to backend
-        createdAt: new Date(transaction.timestamp).toISOString(),
+      // Step 1: Nonce Check (Duplicate Prevention)
+      if (payload.nonce && this.processedNonces.has(payload.nonce)) {
+        console.warn('⚠️ Nonce already processed:', payload.nonce);
+        return;
+      }
+
+      this.isDecrypting = true;
+      this.cdr.detectChanges();
+
+      let decryptedPayload: any = payload;
+
+      // Step 2: RSA Decryption (If payload contains encryptedData)
+      if (payload.encryptedData) {
+        console.log('Decrypting payload with receiver private key...');
+        const privateKey = await this.encryptionService.getPrivateKey();
+        
+        if (!privateKey) {
+          throw new Error('Receiver private key missing from local storage');
+        }
+
+        const decryptedJson = await this.encryptionService.decryptWithPrivateKey(payload.encryptedData, privateKey);
+        decryptedPayload = JSON.parse(decryptedJson);
+        console.log('✅ Payload decrypted successfully:', decryptedPayload);
+      }
+      this.isDecrypting = false;
+
+      // Step 3: Signature Verification (RSA-PSS)
+      if (payload.signature && decryptedPayload.senderUpiId) {
+        console.log('Verifying sender signature...');
+        const senderUPI = decryptedPayload.senderUpiId || payload.senderUPI;
+        
+        try {
+          const senderKeyRes = await this.http.get<any>(`http://10.11.73.26:8080/user/public-key/${senderUPI}`).toPromise();
+          
+          if (senderKeyRes && senderKeyRes.publicKey) {
+            const paymentString = `${decryptedPayload.senderUpiId}|${decryptedPayload.receiverUpiId}|${decryptedPayload.amount}|${decryptedPayload.timestamp}|${decryptedPayload.nonce}`;
+
+            const isValidSignature = await this.encryptionService.verifySignature(paymentString, payload.signature, senderKeyRes.publicKey);
+            
+            if (!isValidSignature) {
+              console.error('Signature verification FAILED');
+              this.showMessage('❌ Invalid signature: payload may be tampered', 'error');
+              this.cdr.detectChanges();
+              return;
+            }
+            console.log('✅ Signature verified successfully');
+          }
+        } catch (sigErr) {
+          console.warn('⚠️ Could not fetch sender public key for verification:', sigErr);
+        }
+      }
+
+      // Step 4: Payload Validation
+      const senderUPI = decryptedPayload.senderUpiId || payload.senderUPI;
+      const receiverUPI = decryptedPayload.receiverUpiId || payload.receiverUPI;
+      const amount = decryptedPayload.amount || payload.amount;
+      const nonce = decryptedPayload.nonce || payload.nonce;
+      const timestamp = decryptedPayload.timestamp || payload.timestamp;
+
+      const validation = this.paymentValidatorService.validatePayment({
+        senderUPI,
+        receiverUPI,
+        amount,
+        nonce,
+        timestamp
+      });
+
+      if (!validation.valid) {
+        console.error('Validation failed:', validation.errors);
+        this.showMessage('❌ Payment rejected: ' + validation.errors[0], 'error');
+        this.cdr.detectChanges();
+        return;
+      }
+
+      // Step 5: Store in IndexedDB
+      const paymentRecord: PendingTransaction = {
+        transactionId: decryptedPayload.transactionId || payload.transactionId,
+        senderUpiId: payload.senderUPI,
+        receiverUpiId: payload.receiverUPI,
+        encryptedData: payload.encryptedData,
+        signature: payload.signature,
+        amount: (payload as any).amount,
+        nonce: payload.nonce,
+        status: 'RECEIVED',
+        createdAt: new Date().toISOString(),
+        receivedAt: new Date().toISOString(),
         retryCount: 0,
-        type: 'BLE',
-        nonce: transaction.nonce,
-        signature: transaction.signature,
-        payloadVersion: transaction.payloadVersion,
-        source: 'RECEIVED',
-        isOffline: true
+        type: 'BLE'
       };
 
-      const dbId = await this.indexedDbService.saveBLEReceivedPayment(pendingTransaction);
-      console.log('Payment saved to IndexedDB with ID: ', dbId);
+      await this.indexedDbService.saveBLEReceivedPayment(paymentRecord);
 
-      // Show success
-      this.successMessage = `✅ Received ₹${transaction.amount} from ${transaction.senderUPI}`;
+      if (nonce) {
+        this.processedNonces.add(nonce);
+      }
 
-      // Reload received payments list
-      await this.loadReceivedPayments();
+      console.log('Payment stored locally');
 
-      // Auto hides success message after 3 seconds
-      setTimeout(() => {
-        this.successMessage = '';
+      // Update UI
+      this.loadPendingPayments();
+        this.showMessage(`Payment Received!\n\nFrom: ${payload.senderUPI}\nAmount: ₹${(payload as any).amount}`, 'success');
         this.cdr.detectChanges();
-      }, 3000);
     }
-    catch (error) {
-      console.error('Error processing received payment: ', error);
-      this.errorMessage = 'Failed to save paymen. Please try again.';
+    catch (error: any) {
+      console.error('Error processing payment: ', error);
+      this.showMessage('❌ Error processing payment', 'error');
+      this.isDecrypting = false;
+      this.cdr.detectChanges();
+    }
+  }   
+
+// ------ Method 4: Load PENDING payments ------
+  private async loadPendingPayments(): Promise<void> {
+    try{
+      const payments = await this.indexedDbService.getAllBLEReceivedPayments();
+
+      this.pendingPayments = (payments || []).filter(p => p.status === 'PENDING' || p.status === 'RECEIVED' || p.status === 'SYNCING');
+      console.log('Loaded ' + this.pendingPayments.length + ' pending payments');
+
+      this.cdr.detectChanges();
+    }
+    catch (error: any) {
+      console.error('Error loading payments: ', error);
     }
   }  
 
-// ------ Method 6: Load received payments from IndexedDB ------
-  private async loadReceivedPayments(): Promise<void> {
-    console.log('Loading received payments...');
-
+// ------ Method 5: Load Received Payments ------
+  private async loadAllReceivedPayments(): Promise<void> {
     try {
-      this.loadingPayments = true;
-
-      // Get all BLE received payments from IndexedDB
       const payments = await this.indexedDbService.getAllBLEReceivedPayments();
-      console.log('Received payments fetched: ', payments);
+      // Only show SYNCED payments in received list
+      this.receivedPayments = (payments || []).filter(p => p.status === 'SYNCED') || [];
+      console.log('Loaded ' + this.receivedPayments.length + ' received payments');
 
-      // Transform to display format
-      this.receivedPayments = payments.map(payment => ({
-        id: payment.transactionId,
-        senderUPI: payment.senderUpiId,
-        amount: payment.amount,
-        timestamp: new Date(payment.createdAt).getTime(),
-        dateTime: new Date(payment.createdAt).toLocaleString('en-IN'),
-        status: (payment.status as any) || 'SYNCED',
-        statusLabel: this.getStatusLabel(payment.status)
-      }));
-
-      // Sort by date (newest first)
-      this.receivedPayments.sort((a, b) => b.timestamp - a.timestamp);
-
-      // Calculate stats
-      await this.calculateStats();
-
-      this.loadingPayments = false;
-      console.log('Received payments loaded: ', this.receivedPayments.length);
-    }  
-    catch (error) {
-      console.error('Error loading received payments: ', error);
-      this.errorMessage = 'Failed to laod received payments';
-      this.loadingPayments = false;
+      this.cdr.detectChanges();
+    }
+    catch (error: any) {
+      console.error('Error loading payments: ', error);
     }
   }
 
-// ------ Method 7: Calculate Statistics ------
-  private async calculateStats(): Promise<void> {
-    console.log('Calculating statistics...');
+// ------ Method 6: Auto-sync when online ------
+  private setupAutoSync(): void {
+    console.log('Setting up auto-sync');
 
-    try {
-      const stats = await this.indexedDbService.getBLEStatistics();
-
-      this.paymentStats.totalReceived = stats.received;
-      this.paymentStats.totalAmount = this.receivedPayments.reduce(
-        (sum, payment) => sum + payment.amount, 0);
-
-      this.paymentStats.pendingSync = stats.pendingSync;
-      console.log('Statistics calculated: ', this.paymentStats);  
-    }
-    catch (error) {
-      console.error('Error calculating stats: ', error);
-    }
-  }  
-
-// ------ Method 8: Get Status Label ------
-  private getStatusLabel(status: string): string {
-    switch (status) {
-      case 'PENDING':
-        return 'Pending Sync';
-      case 'SYNCING':
-        return 'Syncing...';
-      case 'SYNCED':
-      case 'OFFLINE_SYNCED':
-        return 'Offline Confirmed';
-      case 'SYNCED_BACKEND':
-        return 'Synced ✓';
-      case 'FAILED':
-        return 'Failed';
-      default:
-        return 'Pending';        
-    }
-  }  
-
-// ------ Method 9: Get Status Badge color ------
-  getStatusBadgeClass(status: string): string {
-    switch (status) {
-      case 'OFFLINE_SYNCED':
-      case 'SYNCED':
-      case 'SYNCED_BACKEND':
-        return 'bg-green-100 text-green-800';
-      case 'SYNCING':
-      case 'PENDING':
-        return 'bg-yellow-100 text-yellow-800';
-      case 'FAILED':
-        return 'bg-red-100 text-red-800';
-      default: 
-        return 'bg-gray-100 text-gray-800';            
-    }
-  }  
-
-// ------ Method 10: Format Currency ------ 
-  formatCurrency(amount: number): string {
-    return '₹' + amount.toLocaleString('en-IN', {
-      minimumFractionDigits: 2,
-      maximumFractionDigits: 2
+    window.addEventListener('online', async() => {
+      console.log('Internet connected! Starting auto-sync...');
+      await this.syncPendingPayments();
     });
   } 
 
-// ------ Method 11: Extract Name from UPI ------
-  extractName(upi: string): string {
-    if (!upi) return 'Unknown';
-    const name = upi.split('@')[0];
-    return name.charAt(0).toUpperCase() + name.slice(1);
-  }  
+// ------ Method 7: Sync to backend ------
+  async syncPendingPayments(): Promise<void> {
+    console.log('Syncing pending payments...');
 
-// ------ Method 12: Go Back to dashboard ------
-  goBackToDashboard(): void {
-    console.log('Navigating back to dashboard...');
+    try {
+      this.isSyncing = true;
+      this.syncProgress = true;
+      this.cdr.detectChanges();
 
-    // Stop receiving before navigating away
-    if (this.isListening) {
-      this.stopReceiving();
+      const results = await this.wifiRelayService.syncPaymentsToBackend(this.pendingPayments);
+
+      // Update UI
+      const synced = results.filter(r => r.status === 'SYNCED').length;
+      const failed = results.filter(r => r.status === 'FAILED').length;
+
+      this.showMessage(`Sync complete!\n✅ ${synced} synced\n❌ ${failed} failed`,'info');
+
+      // Reload
+      await this.loadPendingPayments();
+      await this.loadAllReceivedPayments();
     }
-
-    this.router.navigate(['/dashboard']);
+    catch (error: any) {
+      console.error('Sync error: ', error);
+      this.showMessage('Sync error: ' + error.message, 'error');
+    }
+    finally {
+      this.isSyncing = false;
+      this.syncProgress = false;
+      this.cdr.detectChanges();
+    }
   }  
 
-// ------ Method 13: Refresh received payments ------
-  async refreshPayments(): Promise<void> {
-    console.log('Refreshing payments...');
-    await this.loadReceivedPayments();
-  }  
+// ------ Method 8: Stop Listening ------
+  stopListening(): void {
+    console.log('Stopping BLE receiver...');
+    this.isListening = false;
+    this.isLocalServerRunning = false;
+    this.isPolling = false;
+    this.stopPollingServer();
+    this.showMessage('⚪ Stopped listening', 'info');
+    this.cdr.detectChanges();
+  }
 
-// ------ Method 14: Clear All Synced payments ------
-  async clearSyncedPayments(): Promise<void> {
-    console.log('Clearing synced payments...');
+// ------ Method 9: Poll server for pending payments ------
+  private startPollingServer(): void {
+    console.log('Starting server polling...');
 
-    if (confirm('Clear all synced payments? This cannot be undone.')) {
+    this.pollingInterval = setInterval(async () => {
       try {
-        await this.indexedDbService.clearBLESyncedPayments();
-        this.successMessage = '✅ Synced payments cleared';
-        await this.loadReceivedPayments();
+        const beforeCount = this.pendingPayments.length;
+
+        await this.loadPendingPaymentsFromServer();
+
+        const afterCount = this.pendingPayments.length;
+
+        if (afterCount > beforeCount) {
+          console.log(' New Payment! Total now: ' + afterCount);
+          this.cdr.detectChanges();
+        }
       }
-      catch (error) {
-        console.error('Error clearing payments: ', error);
-        this.errorMessage = 'Failed to clear payments';
+      catch (error: any) {
+        console.warn('Polling error: ', error.message);
       }
+    }, 2000);    // Poll every 2 seconds
+  }  
+
+// ------ Method 10: Stop polling ------
+  private stopPollingServer(): void {
+    if (this.pollingInterval) {
+      clearInterval(this.pollingInterval);
+      this.pollingInterval = null;
+      console.log('Polling stopped');
     }
   }  
 
-// ------ Method 15: Get receiver status text ------
-  getReceiverStatusText(): string {
-    if (this.isListening) {
-      return '🟢 Listening for payments...';
+// ------ Method 11: Fetch pending payments from Node.js server ------
+  private async loadPendingPaymentsFromServer(): Promise<void> {
+    try {
+      // Query the Node.js payment server
+      const response = await this.http.get<any>(
+        'http://10.11.73.26:5000/api/payments'
+      ).toPromise();
+
+      if (response && response.payments && response.payments.length > 0) {
+        console.log('Fetched ' + response.payments.length + ' payments from server');
+
+        // Store in local IndexedDB
+        for (const payment of response.payments) {
+          await this.processIncomingPayment(payment);
+        }  
+      }
     }
-    else if (this.isLoading) {
-      return '⏳ Loading...';
-    }
-    else {
-      return '🔴 Not listening';
+    catch (error: any) {
+      // Server not reachabel yet 
+      console.warn('Could not fetch from server: ' + error.message);
     }
   }  
+
+// ------ HELPER METHODS ------  
+  private showMessage(text: string, type: 'success' | 'error' | 'info'): void {
+    this.message = text;
+    this.messageType = type;
+  }
+
+  goBack(): void {
+    this.router.navigate(['/dashboard']);
+  }
+
+  // Template wrappers / aliases
+  goBackToDashboard(): void {
+    this.goBack();
+  }
+
+  startReceiving(): Promise<void> {
+    return this.startListening();
+  }
+
+  stopReceiving(): void {
+    this.stopListening();
+  }
+
+  get errorMessage(): string | null {
+    return this.messageType === 'error' ? this.message : null;
+  }
+
+  get successMessage(): string | null {
+    return this.messageType === 'success' ? this.message : null;
+  }
+
+  get userUpiId(): string {
+    return this.receiverUPI;
+  }
+
+  private resolveLocalIp(): string {
+    const hostname = (window && window.location && window.location.hostname) || '';
+
+    if (!hostname || hostname === 'localhost' || hostname === '127.0.0.1' || hostname === '0.0.0.0') {
+      return '10.11.73.26';
+    }
+
+    return hostname;
+  }
+
+  // Returns a displayable local IP/hostname for the template
+  getLocalIP(): string {
+    return this.localIp || this.resolveLocalIp();
+  }
 }
