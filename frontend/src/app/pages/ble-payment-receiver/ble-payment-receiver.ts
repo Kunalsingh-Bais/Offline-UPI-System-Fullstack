@@ -48,7 +48,12 @@ export class BlePaymentReceiverComponent implements OnInit, OnDestroy {
   private pollingInterval: any;
   
   private destroy$ = new Subject<void>();
-  private pollingSubscription: any;
+
+  // Internet connectivity indicator
+  isOnline = navigator.onLine;
+
+  private networkCheckInterval: any;
+  private wasOffline = false;  //To track when we transition from offline -> online
 
   constructor(
     private userService: UserService,
@@ -66,6 +71,8 @@ export class BlePaymentReceiverComponent implements OnInit, OnDestroy {
     console.log('BleReceiverComponent initialized');
     this.receiverUPI = this.userService.getUpiIdFromStorage() || '';
     this.userUPI = this.receiverUPI;
+    this.updateNetworkState(navigator.onLine);
+    this.startNetworkPolling();
     this.setupAutoSync();
     this.loadAllReceivedPayments();
     this.loadPendingPayments();
@@ -75,7 +82,12 @@ export class BlePaymentReceiverComponent implements OnInit, OnDestroy {
   }
 
   ngOnDestroy(): void {
-    this.startPollingServer();
+    // Clean up the interval when leaving the page
+    if (this.networkCheckInterval) {
+      clearInterval(this.networkCheckInterval);
+    }
+
+    this.stopPollingServer();
     this.destroy$.next();
     this.destroy$.complete();
   }
@@ -149,10 +161,20 @@ export class BlePaymentReceiverComponent implements OnInit, OnDestroy {
     
     try {
       // Start local server
-      this.wifiRelayService.startLocalServer();
       this.isListening = true;
       this.isLocalServerRunning = true;
       this.isPolling = true;
+
+      await this.http.post('http://localhost:5000/api/set-listening', { isListening: true }).toPromise();
+
+      console.log('Uploading local public key to relay server...');
+      const localPublicKey = await this.encryptionService.getPublicKey();
+      
+      await this.http.post('http://localhost:5000/api/public-key', { 
+        publicKey: localPublicKey 
+      }).toPromise();
+      
+      console.log('✅ Public key uploaded successfully');
 
       this.showMessage(`✅ Ready to Receive!\n\nYour UPI: ${this.receiverUPI}\n\nListening for encrypted payments...`, 'success');
 
@@ -211,6 +233,8 @@ export class BlePaymentReceiverComponent implements OnInit, OnDestroy {
       this.isDecrypting = true;
       this.cdr.detectChanges();
 
+      await this.delay(2000);
+
       let decryptedPayload: any = payload;
 
       // Step 2: RSA Decryption (If payload contains encryptedData)
@@ -234,7 +258,7 @@ export class BlePaymentReceiverComponent implements OnInit, OnDestroy {
         const senderUPI = decryptedPayload.senderUpiId || payload.senderUPI;
         
         try {
-          const senderKeyRes = await this.http.get<any>(`http://10.11.73.26:8080/user/public-key/${senderUPI}`).toPromise();
+          const senderKeyRes = await this.http.get<any>(`http://10.122.798.14:8080/user/public-key/${senderUPI}`).toPromise();
           
           if (senderKeyRes && senderKeyRes.publicKey) {
             const paymentString = `${decryptedPayload.senderUpiId}|${decryptedPayload.receiverUpiId}|${decryptedPayload.amount}|${decryptedPayload.timestamp}|${decryptedPayload.nonce}`;
@@ -358,6 +382,14 @@ export class BlePaymentReceiverComponent implements OnInit, OnDestroy {
     console.log('Syncing pending payments...');
 
     try {
+      if (this.pendingPayments.length === 0) return;
+
+      // Stop the sync if offline and inform the user
+      if (!this.isOnline) {
+        alert("You are currently offline.\n\nYour payments are safely saved on this device and will sync automatically the moment your internet connection is restored");
+        return;
+      }
+
       this.isSyncing = true;
       this.syncProgress = true;
       this.cdr.detectChanges();
@@ -365,14 +397,16 @@ export class BlePaymentReceiverComponent implements OnInit, OnDestroy {
       const results = await this.wifiRelayService.syncPaymentsToBackend(this.pendingPayments);
 
       // Update UI
-      const synced = results.filter(r => r.status === 'SYNCED').length;
-      const failed = results.filter(r => r.status === 'FAILED').length;
+      const synced = results.filter(r => r.success === 'SYNCED').length;
+      const failed = results.filter(r => r.success === 'FAILED').length;
 
       this.showMessage(`Sync complete!\n✅ ${synced} synced\n❌ ${failed} failed`,'info');
 
       // Reload
       await this.loadPendingPayments();
       await this.loadAllReceivedPayments();
+
+      this.cdr.detectChanges();
     }
     catch (error: any) {
       console.error('Sync error: ', error);
@@ -386,12 +420,20 @@ export class BlePaymentReceiverComponent implements OnInit, OnDestroy {
   }  
 
 // ------ Method 8: Stop Listening ------
-  stopListening(): void {
+  async stopListening(): Promise<void> {
     console.log('Stopping BLE receiver...');
     this.isListening = false;
     this.isLocalServerRunning = false;
     this.isPolling = false;
     this.stopPollingServer();
+
+    try {
+      await this.http.post('http://localhost:5000/api/set-listening', { isListening: false }).toPromise();
+    } 
+    catch (err) {
+      console.error('Could not update node server state', err);
+    }
+
     this.showMessage('⚪ Stopped listening', 'info');
     this.cdr.detectChanges();
   }
@@ -433,7 +475,7 @@ export class BlePaymentReceiverComponent implements OnInit, OnDestroy {
     try {
       // Query the Node.js payment server
       const response = await this.http.get<any>(
-        'http://10.11.73.26:5000/api/payments'
+        'http://localhost:5000/api/payments'
       ).toPromise();
 
       if (response && response.payments && response.payments.length > 0) {
@@ -451,7 +493,75 @@ export class BlePaymentReceiverComponent implements OnInit, OnDestroy {
     }
   }  
 
+// ------ Method 12: Internet connection detection (Online/Offline) ------
+  private startNetworkPolling(): void {
+    // Check the internet every 5 seconds
+    this.networkCheckInterval = setInterval(async () => {
+      
+      // First, check if the physical Wi-Fi is even turned on
+      if (!navigator.onLine) {
+        this.updateNetworkState(false);
+        return;
+      }
+
+      // If Wi-Fi is on, PROVE there is real internet
+      const hasRealInternet = await this.checkActualInternet();
+      this.updateNetworkState(hasRealInternet);
+
+    }, 5000); // Runs every 5 seconds
+  }
+
+// ------ Method 13: Update Network State ------
+  private updateNetworkState(isActuallyOnline: boolean): void {
+    // If the state hasn't changed, do nothing
+    if (this.isOnline === isActuallyOnline) return;
+
+    this.isOnline = isActuallyOnline;
+    this.cdr.detectChanges();
+
+    if (isActuallyOnline) {
+      console.log('Real Internet Confirmed!');
+      
+      // AUTO-SYNC MAGIC: Only trigger if we just transitioned from offline to online
+      if (this.wasOffline && this.pendingPayments && this.pendingPayments.length > 0) {
+        console.log('Auto-syncing pending payments in the background...');
+        this.syncPendingPayments();
+      }
+      this.wasOffline = false; 
+    } 
+    else {
+      console.log('❌ Lie-Fi Detected! Switched to Local Mode');
+      this.wasOffline = true;
+    }
+  }    
+
 // ------ HELPER METHODS ------  
+  
+  // --- Helper: Check real Internet ---
+  async checkActualInternet(): Promise<boolean> {
+    // Create a controller to forcefully cancel the request
+    const controller = new AbortController();
+    
+    // Set a strict 2-second timeout
+    const timeoutId = setTimeout(() => controller.abort(), 2000); 
+
+    try {
+      await fetch(`https://www.google.com/favicon.ico?_=${new Date().getTime()}`, { 
+        mode: 'no-cors',
+        cache: 'no-store',
+        signal: controller.signal // Bind the controller to the fetch
+      });
+      
+      // If the internet is working. Clear the timeout!
+      clearTimeout(timeoutId);
+      return true; 
+      
+    } catch (error) {
+      // If the 2 seconds pass, the controller aborts and triggers this catch block immediately
+      return false; 
+    }
+  }
+
   private showMessage(text: string, type: 'success' | 'error' | 'info'): void {
     this.message = text;
     this.messageType = type;
@@ -490,7 +600,7 @@ export class BlePaymentReceiverComponent implements OnInit, OnDestroy {
     const hostname = (window && window.location && window.location.hostname) || '';
 
     if (!hostname || hostname === 'localhost' || hostname === '127.0.0.1' || hostname === '0.0.0.0') {
-      return '10.11.73.26';
+      return 'localhost';
     }
 
     return hostname;
@@ -499,5 +609,10 @@ export class BlePaymentReceiverComponent implements OnInit, OnDestroy {
   // Returns a displayable local IP/hostname for the template
   getLocalIP(): string {
     return this.localIp || this.resolveLocalIp();
+  }
+
+  // time delay 
+  private delay(ms: number): Promise<void> {
+    return new Promise(resolve => setTimeout(resolve, ms));
   }
 }
