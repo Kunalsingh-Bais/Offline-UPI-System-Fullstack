@@ -8,22 +8,22 @@ export interface PendingTransaction {
   amount: number;
   description?: string;
   encryptedData: string;
-  status: 'PENDING' | 'SYNCING' | 'FAILED' | 'SYNCED';
+  status: 'PENDING' | 'SYNCING' | 'FAILED' | 'SYNCED' | 'RECEIVED';
   createdAt: string;
   retryCount: number;
-  type: 'UPI' | 'BLE';
+  type?:'BLE';
 
   // --- BLE specific fields ---
   nonce?: string;
   signature?: string;
   payloadVersion?: number;
-  receivedAt?: number;
+  receivedAt?: string;
   syncedAt?: number;
   source?: 'SENT' | 'RECEIVED';
   isOffline?: boolean;
   deviceInfo?: string;
   lastSyncError?: string;
-  backendTransactionId: string;
+  backendTransactionId?: string;
 }
 
 @Injectable({
@@ -183,7 +183,14 @@ export class IndexedDbService {
   async saveBLEReceivedPayment(transaction: PendingTransaction): Promise<number> {
     console.log('Saving BLE received payment: ', transaction.transactionId);
 
-    // Ensure it's marked as BLE and RECEIVED
+    // check if already exists
+    const existingTxn = await this.getBLETransactionById(transaction.transactionId);
+
+    if (existingTxn && existingTxn.id) {
+      console.warn('Transaction already exists in IndexedDB, skipping duplicate.');
+      return existingTxn.id;
+    }
+    
     transaction.type = "BLE";
     transaction.source = "RECEIVED";
     transaction.isOffline = true;
@@ -214,7 +221,14 @@ export class IndexedDbService {
   async saveBLESentPayment(transaction: PendingTransaction): Promise<number>{
     console.log('Saving BLE sent payment: ', transaction.transactionId);
 
-    // Ensure it's marked as BLE and SENT
+    // check if already exists
+    const existingTxn = await this.getBLETransactionById(transaction.transactionId);
+
+    if (existingTxn && existingTxn.id) {
+      console.warn('Transaction already exists in IndexedDB, skipping duplicate.');
+      return existingTxn.id;
+    }
+
     transaction.type = 'BLE';
     transaction.source = 'SENT';
     transaction.isOffline = true;
