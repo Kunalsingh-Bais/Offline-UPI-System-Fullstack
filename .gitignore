@@ -1,0 +1,2 @@
+"Backend/*.key" ; echo "frontend/ssl/" ; echo "frontend/.vscode/" ; git add .gitignore; git commit -m "chore: ignore sensitive RSA keys, SSL certificates, and IDE configs"
+"Backend/*.key" ; echo "frontend/ssl/" ; echo "frontend/.vscode/" ; git add .gitignore;
