@@ -8,16 +8,19 @@ import com.transaction.service.encryption.RSAKeyService;
 import com.transaction.service.entity.Transaction;
 import com.transaction.service.repository.TransactionRepository;
 
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 
-import java.math.BigDecimal;
 import java.time.LocalDateTime;
 import java.util.*;
 import java.util.concurrent.ConcurrentHashMap;
 
 @Service
 public class TransactionService {
+
+    private final static Logger logger = LoggerFactory.getLogger(TransactionService.class);
 
     @Autowired
     private TransactionRepository transactionRepository;
@@ -33,6 +36,15 @@ public class TransactionService {
 
     @Autowired
     private UserServiceClient userServiceClient;
+
+    @Autowired
+    private OfflineIdempotencyService offlineIdempotencyService;
+
+    @Autowired
+    private OfflineKeyExchangeService offlineKeyExchangeService;
+
+    @Autowired
+    private OfflinePaymentSettlementService offlinePaymentSettlementService;
 
     // simple idempotency
     private static ConcurrentHashMap<String, Long> seenNonces = new ConcurrentHashMap<>();
@@ -279,190 +291,218 @@ public class TransactionService {
         return transactionRepository.findBySenderProfileIdOrReceiverProfileIdOrderByCreatedAtDesc(profileId, profileId);
     }
 
-    // ------ Method 4: Dedup check (isFirstTime) ------
-    public boolean isFirstTime(String nonce) {
-        Long prev = seenNonces.putIfAbsent(nonce, System.currentTimeMillis());
+    // ------ Method 4: Process WiFi Transaction ------
+    public WiFiSyncResponse processWifiTransaction(WiFiSyncRequest request) {
 
-        if (prev == null) {
-            System.out.println("First time seeing nonce: " + nonce);
-            return true;  // First time
-        }
-        else {
-            System.out.println("DUPLICATE nonce detected: " + nonce);
-            return false;  // Duplicate
+        logger.info("\n========== PROCESSING WiFi TRANSACTION ==========");
+        logger.info("Method: processWiFiTransaction");
+        logger.info("Transaction ID: {}", request.getTransactionId());
+        logger.info("Sender: {}", request.getSenderUPI());
+        logger.info("Receiver: {}", request.getReceiverUPI());
+
+        try {
+            // Step 1: Validate basic request
+            validateWiFiRequest(request);
+            logger.info("✅ Request is valid");
+
+            // Step 2: Use IdempotencyService for duplicate check
+            if (!offlineIdempotencyService.isFirstTime(request.getNonce())) {
+                logger.warn("⚠️ DUPLICATE: Nonce already processed");
+
+                // Return existing transaction if found
+                Optional <Transaction> existing = transactionRepository.findByNonce(request.getNonce());
+                if (existing.isPresent()) {
+                    logger.info("✅ Returning existing transaction result");
+                    return buildResponseFromTransaction(existing.get());
+                }
+            }
+            logger.info("✅ Nonce is unique - first time processing");
+
+            // Step 3: Delegate to PaymentSettlementService for actual settlement
+            WiFiSyncResponse settlementResponse = offlinePaymentSettlementService.settleWiFiPayment(request);
+
+            logger.info("✅ Settlement complete");
+            logger.info("   Status: {}", settlementResponse.getStatus());
+            logger.info("   Success: {}", settlementResponse.isSuccess());
+
+            return settlementResponse;
+
+        } catch (Exception e) {
+            logger.error("❌ Error processing WiFi transaction: {}", e.getMessage());
+            e.printStackTrace();
+
+            return new WiFiSyncResponse(
+                    request.getTransactionId(),
+                    "PROCESSING_ERROR",
+                    "Failed to process transaction: " + e.getMessage(),
+                    false,
+                    null,
+                    null
+            );
         }
     }
 
-    // ------ Method 5: Sync BLE Transaction ------
-    public BLESyncResponse syncBLETransaction(BLESyncRequest request) {
-        System.out.println("[SERVICE] Processing BLE Sync Request: " + request.getTransactionId());
+    // ------ Method 5: Get Transaction by Nonce ------
+    public Transaction getTransactionByNonce(String nonce) {
+
+        logger.info("Fetching transaction by nonce: {}", nonce);
 
         try {
-            // Step 0: Check if we have seen this nonce before
-            if (!isFirstTime(request.getNonce())) {
-                System.out.println("Duplicate payment detected");
-                return new BLESyncResponse(
-                        request.getTransactionId(),
-                        "DUPLICATE",
-                        "Payment already processed",
+            Optional<Transaction> transaction = transactionRepository.findByNonce(nonce);
+
+            if (transaction.isPresent()) {
+                logger.info("✅ Transaction found with nonce: {}", nonce);
+                return transaction.get();
+            } else {
+                logger.warn("⚠️ No transaction with nonce: {}", nonce);
+                return null;
+            }
+
+        } catch (Exception e) {
+            logger.error("❌ Error fetching by nonce: {}", e.getMessage());
+            throw new RuntimeException("Failed to fetch transaction", e);
+        }
+    }
+
+    // ------ Method 6: Get Wifi transaction ------
+    public List<Transaction> getWifiTransactionHistory() {
+
+        logger.info("Fetching all WiFi transactions");
+
+        try {
+            List<Transaction> transactions = transactionRepository.findByIsOfflineTrue();
+
+            logger.info("✅ Found {} WiFi transactions", transactions.size());
+
+            return transactions;
+
+        } catch (Exception e) {
+            logger.error("❌ Error fetching WiFi transactions: {}", e.getMessage());
+            throw new RuntimeException("Failed to fetch WiFi transactions", e);
+        }
+    }
+
+    // ------ Method 7: Get Unsettled Transaction ------
+    public List<Transaction> getUnsettledTransactions() {
+
+        logger.info("Fetching unsettled WiFi transactions");
+
+        try {
+            // Find Wi-Fi transactions with status not SUCCESS
+            List<Transaction> transactions = transactionRepository.findByIsOfflineTrueAndStatusNot("SUCCESS");
+
+            logger.info("✅ Found {} unsettled transactions", transactions.size());
+
+            return transactions;
+
+        } catch (Exception e) {
+            logger.error("❌ Error fetching unsettled transactions: {}", e.getMessage());
+            throw new RuntimeException("Failed to fetch unsettled transactions", e);
+        }
+    }
+
+    // ------ Method 8: Retry Failed Wifi Payment ------
+    public WiFiSyncResponse retryFailedPayment(String transactionId) {
+
+        logger.info("========== RETRYING FAILED PAYMENT ==========");
+        logger.info("Transaction ID: {}", transactionId);
+
+        try {
+            // Get original transaction
+            Transaction original = transactionRepository.findByTransactionId(transactionId).orElse(null);
+
+            if (original == null) {
+                logger.error("❌ Transaction not found: {}", transactionId);
+                return new WiFiSyncResponse(
+                        transactionId,
+                        "NOT_FOUND",
+                        "Transaction not found",
                         false,
-                        System.currentTimeMillis() + "",
+                        null,
                         null
                 );
             }
 
-            // Step 1: Validate Request
-            if(request.getTransactionId() == null || request.getTransactionId().isEmpty()) {
-                System.out.println("Transaction ID missing");
-                return new BLESyncResponse(null, "FAILED", "Transaction ID is required", false, LocalDateTime.now().toString(), null);
-            }
+            logger.info("✅ Original transaction found");
 
-            if (request.getEncryptedData() == null || request.getEncryptedData().isEmpty()) {
-                System.out.println("Encrypted data missing");
-                return new BLESyncResponse(null, "FAILED", "Encrypted data is required", false, LocalDateTime.now().toString(), null);
-            }
+            // Rebuild request from original transaction
 
-            if (request.getNonce() == null || request.getNonce().isEmpty()) {
-                System.out.println("Nonce missing");
-                return new BLESyncResponse(request.getTransactionId(), "Failed", "Nonce is required", false, LocalDateTime.now().toString(), null);
-            }
+            WiFiSyncRequest retryRequest = new WiFiSyncRequest();
+            retryRequest.setTransactionId(original.getTransactionId());
+            retryRequest.setEncryptedData(original.getEncryptedPayload());
+            retryRequest.setSignature(original.getSignature());
+            retryRequest.setNonce(original.getNonce());
+            retryRequest.setTimestamp(System.currentTimeMillis());
+            retryRequest.setSenderUPI(original.getSenderUpiId());
+            retryRequest.setReceiverUPI(original.getReceiverUpiId());
 
-            System.out.println("[SERVICE] BLE Sync Request validated");
+            logger.info("✅ Retry request built");
 
-            // Step 2: Check for replay attack (nonce already seen)
-            Optional<Transaction> nonceDuplicate = transactionRepository.findByNonce(request.getNonce());
+            // Process with settlement service
 
-            if (nonceDuplicate.isPresent()) {
-                System.out.println("REPLAY ATTACK DETECTED: Nonce already used: " +request.getNonce());
+            WiFiSyncResponse retryResponse = offlinePaymentSettlementService.settleWiFiPayment(retryRequest);
 
-                Transaction txn = nonceDuplicate.get();
-                return new BLESyncResponse(txn.getTransactionId(), txn.getStatus(), "Replay attack detected: Nonce already used", false,
-                        txn.getUpdatedAt().toString(), txn.getTransactionId());
-            }
+            logger.info("✅ Retry processed");
+            logger.info("   Status: {}", retryResponse.getStatus());
 
-            // Step 3: Check for duplicate transactionId (idompotency)
-            Optional<Transaction> existingTransaction = transactionRepository.findByTransactionId(request.getTransactionId());
+            return retryResponse;
 
-            if (existingTransaction.isPresent()) {
-                System.out.println("Transaction already synced: " + request.getTransactionId());
-
-                Transaction txn = existingTransaction.get();
-                return new BLESyncResponse(txn.getTransactionId(), txn.getStatus(), "Transaction already synced", true,
-                        txn.getUpdatedAt().toString(), txn.getTransactionId());
-            }
-
-            // Step 4: Validate signature format
-            if (request.getSignature() == null || request.getSignature().isEmpty()) {
-                System.out.println("Signature missing");
-                return new BLESyncResponse(request.getTransactionId(), "FAILED",
-                        "Signature is required", false, LocalDateTime.now().toString(), null);
-            }
-
-            if (!isValidHexString(request.getSignature())) {
-                System.out.println("Invalid signature format (must be hex)");
-                return new BLESyncResponse(request.getTransactionId(), "FAILED",
-                        "Invalid signature format", false, LocalDateTime.now().toString(), null);
-            }
-
-            // Step 5: Validate timestamp (payment not too old)
-            if (request.getTimestamp() == null) {
-                System.out.println("Timestamp missing");
-                return new BLESyncResponse(request.getTransactionId(), "FAILED",
-                        "Timestamp is required", false, LocalDateTime.now().toString(), null);
-            }
-
-            long ageMs = System.currentTimeMillis() - request.getTimestamp();
-            long MAX_AGE_MS = 5 * 60 * 1000;  // 5 minutes
-
-            if (ageMs > MAX_AGE_MS) {
-                System.out.println("Payment is too old: " + ageMs + "ms");
-                return new BLESyncResponse(request.getTransactionId(), "FAILED",
-                        "Payment is too old (max 5 minutes)", false, LocalDateTime.now().toString(), null);
-            }
-
-            System.out.println("Payment is fresh: " + ageMs + "ms old");
-
-            // STEP 6: Decrypt and Verify payment
-            System.out.println("[SERVICE] Decrypting BLE transaction data...");
-
-            Map<String, Object> decryptedData = encryptionProcessor.decryptAndVerifyPayment(request.getEncryptedData());
-
-            if (decryptedData == null || !(boolean) decryptedData.getOrDefault("hashVerified", false)) {
-                System.out.println("BLE payment decryption failed");
-
-                return new BLESyncResponse(request.getTransactionId(), "FAILED", "Decryption or verification failed",
-                        false, LocalDateTime.now().toString(), null);
-            }
-
-            // Step 7: Extract decrypted data
-            String senderUPI = (String) decryptedData.get("senderUpiId");
-            String receiverUPI = (String) decryptedData.get("receiverUpiId");
-            String amountStr = (String) decryptedData.get("amount");
-            BigDecimal amount = new BigDecimal(amountStr);
-
-            // validate UPI format
-            if (!isValidUPI(senderUPI) || !isValidUPI(receiverUPI)) {
-                System.out.println("Invalid UPI format");
-                return new BLESyncResponse(request.getTransactionId(), "FAILED",
-                        "Invalid UPI format", false, LocalDateTime.now().toString(), null);
-            }
-
-            if (amount.compareTo(BigDecimal.ZERO) <= 0) {
-                System.out.println("Invalid amount");
-                return new BLESyncResponse(request.getTransactionId(), "FAILED",
-                        "Amount must be positive", false, LocalDateTime.now().toString(), null);
-            }
-
-            System.out.println("[SERVICE] Decryption successful");
-            System.out.println("  Sender: " + senderUPI);
-            System.out.println("  Receiver: " + receiverUPI);
-            System.out.println("  Amount: " + amount);
-
-            // Step 8: Create and save BLE transaction
-            Transaction bletransaction = new Transaction();
-            bletransaction.setTransactionId(request.getTransactionId());
-            bletransaction.setSenderUpiId(senderUPI);
-            bletransaction.setReceiverUpiId(receiverUPI);
-            bletransaction.setAmount(amount);
-            bletransaction.setStatus("SUCCESS");
-            bletransaction.setPaymentMethod("Bluetooth");
-            bletransaction.setSource("BLE_SYNC");
-            bletransaction.setDescription("BLE Bluetooth Payment");
-            bletransaction.setStatus("PENDING");
-
-            // Generate hash for BLE transaction
-            String txnHash = generateTransactionHash(senderUPI, receiverUPI, amount.toString());
-            bletransaction.setTxnHash(txnHash);
-
-            bletransaction.setExpireAt(LocalDateTime.now().plusDays(30));
-
-            // Set BLE-specific fields
-            bletransaction.setEncryptedPayload(request.getEncryptedData());
-            bletransaction.setSignature(request.getSignature());
-            bletransaction.setNonce(request.getNonce());
-            bletransaction.setIsOffline(true);
-            bletransaction.setSyncedAt(LocalDateTime.now());
-            bletransaction.setBackendTransactionId(UUID.randomUUID().toString());
-            bletransaction.setSyncAttempts(1);
-            bletransaction.setPayloadVersion(request.getPayloadVersion() != null ? request.getPayloadVersion() : 1);
-
-            Transaction savedTransaction = transactionRepository.save(bletransaction);
-
-            System.out.println("BLE transaction saved successfully");
-            System.out.println("  Transaction ID: " + savedTransaction.getTransactionId());
-            System.out.println("  Backend ID: " + savedTransaction.getBackendTransactionId());
-
-            // Step 9: Return success response
-            return new BLESyncResponse(savedTransaction.getTransactionId(), savedTransaction.getStatus(), "BLE transaction synced successfully", true,
-                    savedTransaction.getCreatedAt().toString(), savedTransaction.getBackendTransactionId());
-        }
-        catch (Exception e) {
-            System.err.println("[SERVICE] Unexpected error: " + e.getMessage());
+        } catch (Exception e) {
+            logger.error("❌ Error retrying payment: {}", e.getMessage());
             e.printStackTrace();
-            return new BLESyncResponse(request.getTransactionId(), "FAILED", "Error: " + e.getMessage(), false, new Date().toString(), null);
+
+            return new WiFiSyncResponse(
+                    transactionId,
+                    "RETRY_ERROR",
+                    "Failed to retry payment: " + e.getMessage(),
+                    false,
+                    null,
+                    null
+            );
         }
     }
 
+    // ------ Method 9: Validate WiFi Request ------
+    private void validateWiFiRequest(WiFiSyncRequest request) throws Exception {
+
+        logger.info("Validating WiFi request...");
+
+        if (request.getTransactionId() == null || request.getTransactionId().isEmpty()) {
+            throw new IllegalArgumentException("Transaction ID is required");
+        }
+
+        if (request.getEncryptedData() == null || request.getEncryptedData().isEmpty()) {
+            throw new IllegalArgumentException("Encrypted data is required");
+        }
+
+        if (request.getSignature() == null || request.getSignature().isEmpty()) {
+            throw new IllegalArgumentException("Signature is required");
+        }
+
+        if (request.getNonce() == null || request.getNonce().isEmpty()) {
+            throw new IllegalArgumentException("Nonce is required");
+        }
+
+        if (request.getSenderUPI() == null || request.getReceiverUPI() == null) {
+            throw new IllegalArgumentException("Sender and receiver UPI required");
+        }
+
+        logger.info("✅ WiFi request is valid");
+    }
+
+    // ------ Method 10: Build Response from Transaction ------
+    private WiFiSyncResponse buildResponseFromTransaction(Transaction transaction) {
+
+        WiFiSyncResponse response = new WiFiSyncResponse();
+        response.setTransactionId(transaction.getTransactionId());
+        response.setStatus(transaction.getStatus());
+        response.setSuccess("SUCCESS".equals(transaction.getStatus()));
+        response.setMessage("Transaction already processed");
+        response.setBackendTransactionId(transaction.getBackendTransactionId());
+        response.setTimestamp(transaction.getSyncedAt().toString());
+
+        return response;
+    }
 
 // ------- Helper Methods -------
 
@@ -500,4 +540,6 @@ public class TransactionService {
         return upi.matches("^[a-zA-Z0-9._-]+@[a-zA-Z0-9]+$") && upi.length() >= 5 && upi.length() <= 50;
     }
 }
+
+
 

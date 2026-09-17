@@ -7,7 +7,7 @@ import lombok.NoArgsConstructor;
 @NoArgsConstructor
 @AllArgsConstructor
 @Data
-public class BLESyncResponse {
+public class WiFiSyncResponse {
     private String transactionId;
     private String status;   // SUCCESS, FAILED
     private String message;

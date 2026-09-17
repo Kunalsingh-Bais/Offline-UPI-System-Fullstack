@@ -39,3 +39,6 @@ encryption:
 logging:
   level:
     org.springframework.security: DEBUG
+
+User-service:
+  url: http://localhost:8081

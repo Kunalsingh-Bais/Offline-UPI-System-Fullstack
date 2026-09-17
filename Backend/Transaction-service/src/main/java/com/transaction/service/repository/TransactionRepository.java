@@ -34,13 +34,20 @@ public interface TransactionRepository extends JpaRepository<Transaction, Intege
     // Find transactions by nonce (prevent duplicate)
     Optional<Transaction> findByNonce(String nonce);
 
-    // Find all pending BLE transactions (not yet synced)
+    // Find all pending Wi-Fi transactions (not yet synced)
     List<Transaction> findBySourceAndIsOfflineAndStatusOrderByCreatedAtDesc(String source, Boolean isOffline, String status);
 
-    // Find pending BLE sync by receiver UPI
+    // Find pending Wi-Fi sync by receiver UPI
     List<Transaction> findByReceiverUpiIdAndSourceAndSyncedAtIsNull(String receiverUpiId, String source);
 
     // Find transactions that need syncing
     List<Transaction> findBySyncAttemptsLessThanAndIsOfflineAndStatusOrderByCreatedAtAsc(Integer maxAttempts, Boolean isOffline, String status);
+
+    // Find all offline/Wi-Fi transactions
+    List<Transaction> findByIsOfflineTrue();
+
+    // Find offline transactions with specific status
+    List<Transaction> findByIsOfflineTrueAndStatusNot(String status);
+
 
 }

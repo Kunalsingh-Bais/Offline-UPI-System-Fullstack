@@ -43,9 +43,9 @@ public class Transaction {
     private String paymentMethod;  // UPI, Bluetooth , Card ,etc
 
     @Column(length = 25)
-    private String source; // REGULAR, BLE_SYNC, etc
+    private String source; // REGULAR, WiFi_SYNC, etc
 
-    @Column(nullable = false)
+    @Column(nullable = false, length = 1024)
     private String txnHash;  // SHA-256 hash of transaction data
 
     @Column(nullable = false)
@@ -60,19 +60,19 @@ public class Transaction {
     @Column(name = "updated_At", nullable = false)
     private LocalDateTime updatedAt;
 
-  // ===== BLE-SPECIFIC FIELDS =====
+  // ===== WiFi-SPECIFIC FIELDS =====
 
-    @Column(columnDefinition = "LONGTEXT")
+    @Column(length = 2048)
     private String encryptedPayload;  // Base64 encrypted payment data
 
-    @Column(length = 128)
+    @Column(length = 2048)
     private String signature;  // SHA-256 hex signature of payload
 
     @Column(length = 50)
     private String nonce;  // Random nonce for replay attack prevention
 
     @Column(name = "is_offline")
-    private Boolean isOffline;   // true for BLE payments, false for regular
+    private Boolean isOffline;   // true for WiFi payments, false for regular
 
     @Column(name = "received_at")
     private LocalDateTime receivedAt;  // When payment was received on phone
@@ -90,7 +90,7 @@ public class Transaction {
     private String lastSyncError;  // Last error message from sync attempt
 
     @Column(name = "payload_version")
-    private Integer payloadVersion = 1;   // BLE payload format version
+    private Integer payloadVersion = 1;   // Wi-Fi payload format version
 
     @PrePersist
     protected void onCreate() {

@@ -13,7 +13,7 @@ import org.springframework.web.bind.annotation.RequestBody;
 import java.util.HashMap;
 import java.util.Map;
 
-@FeignClient(name = "User-service")
+@FeignClient(name = "User-service",contextId = "userServiceClient")
 public interface UserServiceClient {
 
     @PostMapping("/user/wallet/update-balance")
@@ -51,7 +51,7 @@ public interface UserServiceClient {
     }
 
     // --- Get user profile by UPI ID ---
-    @GetMapping("/user/profile/by-upi/{upiId}")
+    @GetMapping("/user/profile/upi/{upiId}")
     UserProfile getProfileByUPI(@PathVariable String upiId);
 
     // --- User profile response ---

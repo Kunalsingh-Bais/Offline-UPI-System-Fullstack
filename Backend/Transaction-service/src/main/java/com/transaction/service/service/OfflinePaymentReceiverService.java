@@ -1,6 +1,6 @@
 package com.transaction.service.service;
 
-import com.transaction.service.dto.BLESyncRequest;
+import com.transaction.service.dto.WiFiSyncRequest;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
@@ -12,7 +12,7 @@ public class OfflinePaymentReceiverService {
 
     // Receive payment from Device A via WiFi relay
     // Stores it but don't settle yet (will settle when synced from Device B)
-    public void receivePaymentFromRelay(BLESyncRequest request) {
+    public void receivePaymentFromRelay(WiFiSyncRequest request) {
         logger.info("Receiving payment from relay");
         logger.info("Sender: {}, Receiver: {}", request.getSenderUPI(), request.getReceiverUPI());
 

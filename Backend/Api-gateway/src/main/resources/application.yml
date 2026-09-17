@@ -11,12 +11,15 @@ spring:
           lower-case-service-id: true
 
       globalcors:
+        add-to-simple-url-handler-mapping: true
         corsConfigurations:
           '[/**]':
             allowedOrigins:
               - "http://localhost:4200"
-              - "http://localhost:3000"
-              - "http://127.0.0.1:4200"
+              - "http://localhost:8080"
+              - "http://localhost:5000"
+              - "http://localhost:4200"
+
             allowedMethods:
               - "GET"
               - "POST"
@@ -54,13 +57,14 @@ spring:
         - id: transaction-service
           uri: lb://Transaction-Service
           predicates:
-            - Path=/api/transaction/**
+            - Path=/api/transaction/**, /api/payment/**
           filters:
             - StripPrefix=1
 
 # Server Configuration
 server:
   port: 8080
+
   servlet:
     context-path: /
 

@@ -7,7 +7,7 @@ import lombok.NoArgsConstructor;
 @NoArgsConstructor
 @AllArgsConstructor
 @Data
-public class BLETransactionPayload {
+public class WiFiTransactionPayload {
     private String senderUpiId;
     private String receiverUpiId;
     private double amount;
