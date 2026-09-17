@@ -6,7 +6,7 @@ import { Injectable } from '@angular/core';
 export class ApiService {
 
   // Base api url for all other service 
-  private readonly BASE_URL = 'http://10.189.165.26:8080';
+  private readonly BASE_URL = 'http://localhost:8080';
 
   constructor() {}
 
@@ -25,8 +25,8 @@ export class ApiService {
     return `${this.BASE_URL}/api/transaction`;
   }
 
-  // syncBLEService
-  get syncBLE() {
-    return `${this.BASE_URL}/api/transactions`;
+  // syncWIFIService
+  get syncWIFI() {
+    return `${this.BASE_URL}/api/payment`;
   }
 }

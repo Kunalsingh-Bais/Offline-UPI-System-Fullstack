@@ -1,13 +1,13 @@
 import { TestBed } from '@angular/core/testing';
 
-import { Receiver } from './receiver';
+import { WifiPaymentBuilder } from './wifi-payment-builder';
 
-describe('Receiver', () => {
-  let service: Receiver;
+describe('WifiPaymentBuilder', () => {
+  let service: WifiPaymentBuilder;
 
   beforeEach(() => {
     TestBed.configureTestingModule({});
-    service = TestBed.inject(Receiver);
+    service = TestBed.inject(WifiPaymentBuilder);
   });
 
   it('should be created', () => {

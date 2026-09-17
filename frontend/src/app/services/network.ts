@@ -1,7 +1,6 @@
 import { HttpClient } from '@angular/common/http';
 import { Injectable } from '@angular/core';
 import { Observable } from 'rxjs';
-import { Capacitor } from '@capacitor/core'
 
 @Injectable({
   providedIn: 'root',
@@ -25,10 +24,4 @@ export class NetworkService {
   delete<T>(url: string): Observable<T> {
     return this.http.delete<T>(url);
   }
-
-  private isAndroid(): boolean {
-    return Capacitor.getPlatform() === 'android';
-    console.log(Capacitor.getPlatform());
-  }
-  
 }

@@ -11,9 +11,9 @@ export interface PendingTransaction {
   status: 'PENDING' | 'SYNCING' | 'FAILED' | 'SYNCED' | 'RECEIVED';
   createdAt: string;
   retryCount: number;
-  type?:'BLE';
+  type?:'WIFI';
 
-  // --- BLE specific fields ---
+  // --- WIFI specific fields ---
   nonce?: string;
   signature?: string;
   payloadVersion?: number;
@@ -33,7 +33,7 @@ export class IndexedDbService {
 
   private dbName = 'Offline-upi-db';   // Database name
   private dbVersion = 1;
-  private storeName = 'pending_transactions';  // Table
+  private storeName = 'pending_transactions';  // TaWIFI
  
   constructor() {}
 
@@ -179,19 +179,19 @@ export class IndexedDbService {
     });
   }  
 
-// ------ Method 6: Save BLE Received Payment ------
-  async saveBLEReceivedPayment(transaction: PendingTransaction): Promise<number> {
-    console.log('Saving BLE received payment: ', transaction.transactionId);
+// ------ Method 6: Save WIFI Received Payment ------
+  async saveWIFIReceivedPayment(transaction: PendingTransaction): Promise<number> {
+    console.log('Saving WIFI received payment: ', transaction.transactionId);
 
     // check if already exists
-    const existingTxn = await this.getBLETransactionById(transaction.transactionId);
+    const existingTxn = await this.getWIFITransactionById(transaction.transactionId);
 
     if (existingTxn && existingTxn.id) {
       console.warn('Transaction already exists in IndexedDB, skipping duplicate.');
       return existingTxn.id;
     }
     
-    transaction.type = "BLE";
+    transaction.type = "WIFI";
     transaction.source = "RECEIVED";
     transaction.isOffline = true;
     transaction.status = 'PENDING';
@@ -206,30 +206,30 @@ export class IndexedDbService {
       const request = store.add(transaction);
 
       request.onsuccess = () => {
-        console.log('BLE received payment saved with ID: ', request.result);
+        console.log('WIFI received payment saved with ID: ', request.result);
         resolve(request.result as number);
       };
 
       request.onerror = () => {
-        console.error('Error saving BLE received payment: ', request.error);
+        console.error('Error saving WIFI received payment: ', request.error);
         reject(request.error);
       };
     });
   }  
 
-// ------ Method 7: Save BLE sent payment ------  
-  async saveBLESentPayment(transaction: PendingTransaction): Promise<number>{
-    console.log('Saving BLE sent payment: ', transaction.transactionId);
+// ------ Method 7: Save WIFI sent payment ------  
+  async saveWIFISentPayment(transaction: PendingTransaction): Promise<number>{
+    console.log('Saving WIFI sent payment: ', transaction.transactionId);
 
     // check if already exists
-    const existingTxn = await this.getBLETransactionById(transaction.transactionId);
+    const existingTxn = await this.getWIFITransactionById(transaction.transactionId);
 
     if (existingTxn && existingTxn.id) {
       console.warn('Transaction already exists in IndexedDB, skipping duplicate.');
       return existingTxn.id;
     }
 
-    transaction.type = 'BLE';
+    transaction.type = 'WIFI';
     transaction.source = 'SENT';
     transaction.isOffline = true;
     transaction.status = 'PENDING';
@@ -244,20 +244,20 @@ export class IndexedDbService {
       const request = store.add(transaction);
 
       request.onsuccess = () => {
-        console.log('BLE sent payment saved with ID: ', request.result);
+        console.log('WIFI sent payment saved with ID: ', request.result);
         resolve(request.result as number);
       };
 
       request.onerror = () => {
-        console.error('Error saving BLE sent payment: ', request.error);
+        console.error('Error saving WIFI sent payment: ', request.error);
         reject(request.error);
       };
     });
   }
 
-// ------ Method 8: Get ALL BLE received payments ------
-  async getAllBLEReceivedPayments(): Promise<PendingTransaction[]> {
-    console.log('Fetching all BLE received payments');
+// ------ Method 8: Get ALL WIFI received payments ------
+  async getAllWIFIReceivedPayments(): Promise<PendingTransaction[]> {
+    console.log('Fetching all WIFI received payments');
 
     const db = await this.openDb();
 
@@ -267,23 +267,23 @@ export class IndexedDbService {
       const request = store.getAll();
 
       request.onsuccess = () => {
-        // Filter for BLE and RECEIVED
-        const bleReceivedPayments = (request.result as PendingTransaction[]).filter( txn => txn.type === 'BLE' && txn.source === 'RECEIVED' );
+        // Filter for WIFI and RECEIVED
+        const WIFIReceivedPayments = (request.result as PendingTransaction[]).filter( txn => txn.type === 'WIFI' && txn.source === 'RECEIVED' );
 
-        console.log('BLE received payments fetched: ', bleReceivedPayments.length);
-        resolve(bleReceivedPayments);
+        console.log('WIFI received payments fetched: ', WIFIReceivedPayments.length);
+        resolve(WIFIReceivedPayments);
       };
 
       request.onerror = () => {
-        console.error('Error fetching BLE received payments: ', request.error);
+        console.error('Error fetching WIFI received payments: ', request.error);
         reject(request.error);
       };
     });
   }
 
-// ------ Method 9: Get All BLE Sent payments ------  
-  async getAllBLESentPayments(): Promise<PendingTransaction[]> {
-    console.log('Fetching all BLE sent payments');
+// ------ Method 9: Get All WIFI Sent payments ------  
+  async getAllWIFISentPayments(): Promise<PendingTransaction[]> {
+    console.log('Fetching all WIFI sent payments');
 
     const db = await this.openDb();
 
@@ -293,23 +293,23 @@ export class IndexedDbService {
       const request = store.getAll();
 
       request.onsuccess = () => {
-        // Filter for BLE and SENT
-        const bleSentPayments = (request.result as PendingTransaction[]).filter( txn => txn.type === 'BLE' && txn.source === 'SENT' );
+        // Filter for WIFI and SENT
+        const WIFISentPayments = (request.result as PendingTransaction[]).filter( txn => txn.type === 'WIFI' && txn.source === 'SENT' );
 
-        console.log('BLE sent payments fetched: ', bleSentPayments.length);
-        resolve(bleSentPayments);
+        console.log('WIFI sent payments fetched: ', WIFISentPayments.length);
+        resolve(WIFISentPayments);
       };
 
       request.onerror = () => {
-        console.error('Error fetching BLE sent payments: ', request.error);
+        console.error('Error fetching WIFI sent payments: ', request.error);
         reject(request.error);
       };
     });
   }
 
-// ------ Method 10: Get All BLE Payments Pending Sync ------  
-  async getAllBLEPendingSync(): Promise<PendingTransaction[]> {
-    console.log('Fetching BLE payments pending sync to backend');
+// ------ Method 10: Get All WIFI Payments Pending Sync ------  
+  async getAllWIFIPendingSync(): Promise<PendingTransaction[]> {
+    console.log('Fetching WIFI payments pending sync to backend');
 
     const db = await this.openDb();
 
@@ -319,10 +319,10 @@ export class IndexedDbService {
       const request = store.getAll();
 
       request.onsuccess = () => {
-        // Filter for BLE with status PENDING or SYNCING
-        const pendingSync = (request.result as PendingTransaction[]).filter( txn => txn.type === 'BLE' && txn.status === 'PENDING' || txn.status === 'SYNCING');
+        // Filter for WIFI with status PENDING or SYNCING
+        const pendingSync = (request.result as PendingTransaction[]).filter( txn => txn.type === 'WIFI' && txn.status === 'PENDING' || txn.status === 'SYNCING');
 
-        console.log('BLE payments pending sync: ', pendingSync.length);
+        console.log('WIFI payments pending sync: ', pendingSync.length);
         resolve(pendingSync);
       };
 
@@ -333,9 +333,9 @@ export class IndexedDbService {
     });
   }
 
-// ------ Method 11: Mark BLE payment as Syncing ------
-  async markBLEAsSyncing(transactionId: string): Promise<void> {
-    console.log('Marking BLE payment as SYNCING : ', transactionId);
+// ------ Method 11: Mark WIFI payment as Syncing ------
+  async markWIFIAsSyncing(transactionId: string): Promise<void> {
+    console.log('Marking WIFI payment as SYNCING : ', transactionId);
 
     const allTransactions = await this.getAllPendingTransactions();
     const transaction = allTransactions.find(t => t.transactionId === transactionId);
@@ -351,9 +351,9 @@ export class IndexedDbService {
     await this.updatePendingTransaction(transaction);
   }  
 
-// ------ Method 12: Mark BLE Payment as Synced ------ 
-  async markBLEAsSynced(transactionId: string, backendTransactionId?: string): Promise<void> {
-    console.log('Mark BLE payment as SYNCED: ', transactionId);
+// ------ Method 12: Mark WIFI Payment as Synced ------ 
+  async markWIFIAsSynced(transactionId: string, backendTransactionId?: string): Promise<void> {
+    console.log('Mark WIFI payment as SYNCED: ', transactionId);
 
     const allTransactions = await this.getAllPendingTransactions();
     const transaction = allTransactions.find(t => t.transactionId === transactionId);
@@ -373,9 +373,9 @@ export class IndexedDbService {
     await this.updatePendingTransaction(transaction);
   }  
 
-// ------ Method 13: Mark BLE payment as Failed ------  
-  async MarkBLEAsFailed(transactionId: string, errorMessage: string): Promise<void> {
-    console.log('Mark BLE payment as FAILED: ', transactionId);
+// ------ Method 13: Mark WIFI payment as Failed ------  
+  async MarkWIFIAsFailed(transactionId: string, errorMessage: string): Promise<void> {
+    console.log('Mark WIFI payment as FAILED: ', transactionId);
 
     const allTransactions = await this.getAllPendingTransactions();
     const transaction = allTransactions.find(t => t.transactionId === transactionId);
@@ -392,43 +392,43 @@ export class IndexedDbService {
     await this.updatePendingTransaction(transaction);
   }
 
-// ------ Method 14: Get BLE Transaction by ID ------
-  async getBLETransactionById(transactionId: string): Promise<PendingTransaction | null> {
-    console.log('Fetching BLE transaction by ID: ', transactionId);
+// ------ Method 14: Get WIFI Transaction by ID ------
+  async getWIFITransactionById(transactionId: string): Promise<PendingTransaction | null> {
+    console.log('Fetching WIFI transaction by ID: ', transactionId);
 
     const allTransactions = await this.getAllPendingTransactions();
-    const transaction = allTransactions.find(t => t.transactionId === transactionId && t.type === 'BLE');
+    const transaction = allTransactions.find(t => t.transactionId === transactionId && t.type === 'WIFI');
 
     if (!transaction) {
-      console.warn('BLE transaction not found: ', transactionId);
+      console.warn('WIFI transaction not found: ', transactionId);
       return null;
     }
 
     return transaction;
   }
 
-// ------ Method 15: Clear All BLE Synced payments ------
-  async clearBLESyncedPayments(): Promise<void> {
-    console.log('Clearing all synced BLE payments');
+// ------ Method 15: Clear All WIFI Synced payments ------
+  async clearWIFISyncedPayments(): Promise<void> {
+    console.log('Clearing all synced WIFI payments');
 
     const db = await this.openDb();
     const allTransactions = await this.getAllPendingTransactions();
 
-    // Filter for BLE payments that are synced
-    const syncedBLE = allTransactions.filter(t => t.type === 'BLE' && t.status === 'SYNCED');
+    // Filter for WIFI payments that are synced
+    const syncedWIFI = allTransactions.filter(t => t.type === 'WIFI' && t.status === 'SYNCED');
 
-    for (const transaction of syncedBLE) {
+    for (const transaction of syncedWIFI) {
       if(transaction.id) {
         await this.deletePendingTransaction(transaction.id);
       }
     }
 
-    console.log('Cleared ', syncedBLE.length, ' synced BLE payments');
+    console.log('Cleared ', syncedWIFI.length, ' synced WIFI payments');
   }  
 
-// ------ Method 16: Get BLE Statistics ------
-  async getBLEStatistics(): Promise<{
-    totalBLE: number;
+// ------ Method 16: Get WIFI Statistics ------
+  async getWIFIStatistics(): Promise<{
+    totalWIFI: number;
     received: number;
     sent: number;
     pendingSync: number;
@@ -437,15 +437,15 @@ export class IndexedDbService {
   }> {
 
     const allTransactions = await this.getAllPendingTransactions();
-    const bleTransaction = allTransactions.filter(t => t.type === 'BLE');
+    const WIFITransaction = allTransactions.filter(t => t.type === 'WIFI');
 
     return {
-      totalBLE: bleTransaction.length,
-      received: bleTransaction.filter(t => t.source === 'RECEIVED').length,
-      sent: bleTransaction.filter(t => t.source === 'SENT').length,
-      pendingSync: bleTransaction.filter(t => t.status === 'PENDING' || t.status === 'SYNCING').length,
-      synced: bleTransaction.filter(t => t.status === 'SYNCED').length,
-      failed: bleTransaction.filter(t => t.status === 'FAILED').length
+      totalWIFI: WIFITransaction.length,
+      received: WIFITransaction.filter(t => t.source === 'RECEIVED').length,
+      sent: WIFITransaction.filter(t => t.source === 'SENT').length,
+      pendingSync: WIFITransaction.filter(t => t.status === 'PENDING' || t.status === 'SYNCING').length,
+      synced: WIFITransaction.filter(t => t.status === 'SYNCED').length,
+      failed: WIFITransaction.filter(t => t.status === 'FAILED').length
     };
   }  
 }

@@ -67,7 +67,7 @@ export class EncryptionService {
           name: 'RSA-OAEP',        // Algorithm: RSA with OAEP padding 
           hash: 'SHA-256'          // Hash algorithm
         },
-        false,                     // Not extractable
+        false,                     // Not extractaWIFI
         ['encrypt']                // Usage: encryption only 
       );
 
@@ -123,7 +123,7 @@ export class EncryptionService {
         {
           name: 'AES-GCM'          // Algorithm: AES-GCM
         },
-        false,                     // Not extractable
+        false,                     // Not extractaWIFI
         ['encrypt']                // Usage: encryption only
       );
 
@@ -247,20 +247,25 @@ export class EncryptionService {
 
     console.log('Generating local RSA-4096 key pair...');
 
+    if (!window.crypto || !window.crypto.subtle) {
+      console.error('❌ Web Crypto API is disabled. The browser requires HTTPS or localhost to unlock it.');
+      throw new Error('Web Crypto API not available (Secure Context required).');
+    }
+
     try {
-      const keyPair = await crypto.subtle.generateKey(
+      const keyPair = await window.crypto.subtle.generateKey(
         {
-          name: this.RSA_ALGORITHM,
+          name: this.SIGN_ALGORITHM,
           modulusLength: this.KEY_SIZE,
           publicExponent: new Uint8Array([1, 0, 1]),  // 65537
           hash: this.HASH_ALGORITHM
         },
-        true,  // extractable (needed to export)
-        ['encrypt', 'decrypt']
+        true,  // extractaWIFI (needed to export)
+        ['sign', 'verify']
       );
 
       console.log('Key pair generated');
-      console.log('Algorithm: ' + this.RSA_ALGORITHM);
+      console.log('Algorithm: ' + this.SIGN_ALGORITHM);
       console.log('Key size: ' + this.KEY_SIZE + ' bits');
 
       // Store in memory
@@ -285,12 +290,12 @@ export class EncryptionService {
 
     try {
       // Export private key
-      const privateKeyJwk = await crypto.subtle.exportKey('jwk', keyPair.privateKey);
+      const privateKeyJwk = await window.crypto.subtle.exportKey('jwk', keyPair.privateKey);
       const privateKeyJson = JSON.stringify(privateKeyJwk);
       this.localPrivateKeyBase64 = btoa(privateKeyJson);
 
       // Export public key
-      const publicKeyJwk = await crypto.subtle.exportKey('jwk', keyPair.publicKey);
+      const publicKeyJwk = await window.crypto.subtle.exportKey('jwk', keyPair.publicKey);
       const publicKeyJson = JSON.stringify(publicKeyJwk);
       this.localPublicKeyBase64 = btoa(publicKeyJson);
 
@@ -381,17 +386,21 @@ export class EncryptionService {
       const publicKeyJson = atob(publicKeyBase64);
       const publicKeyJwk = JSON.parse(publicKeyJson);
 
-      console.log('Public key decoded');  
+      console.log('Public key decoded to binary'); 
+      
+      // Webcrypto Bypass
+      publicKeyJwk.key_ops = ['encrypt']; // Force the usage to encrypt
+      delete publicKeyJwk.alg;            // Strip the signing algorithm tag
 
       // Step 2: Import as CryptoKey
-      const publicKey = await crypto.subtle.importKey(
+      const publicKey = await window.crypto.subtle.importKey(
         'jwk',
         publicKeyJwk,
         {
           name: this.RSA_ALGORITHM,
           hash: this.HASH_ALGORITHM
         },
-        false,
+        true,
         ['encrypt']
       );
 
@@ -402,7 +411,7 @@ export class EncryptionService {
       console.log('   Plaintext size: ' + plaintextBytes.length + ' bytes');
 
       // Step 4: Encrypt with RSA-OAEP
-      const encryptedArrayBuffer = await crypto.subtle.encrypt(
+      const encryptedArrayBuffer = await window.crypto.subtle.encrypt(
         this.RSA_ALGORITHM,
         publicKey,
         plaintextBytes
@@ -437,8 +446,12 @@ export class EncryptionService {
 
       console.log('Private key decoded');  
 
+      // WebCrypto ByPass
+      privateKeyJwk.key_ops = ['decrypt']; // Force the usage to decrypt
+      delete privateKeyJwk.alg;            // Strip the signing algorithm tag so OAEP accepts it
+
       // Step 2: Import as CryptoKey
-      const privateKey = await crypto.subtle.importKey(
+      const privateKey = await window.crypto.subtle.importKey(
         'jwk',
         privateKeyJwk,
         {
@@ -458,7 +471,7 @@ export class EncryptionService {
       const bufferToDecrypt = new Uint8Array(ciphertextBytes);
 
       // Step 4: Decrypt with RSA-OAEP
-      const decryptedArrayBuffer = await crypto.subtle.decrypt(
+      const decryptedArrayBuffer = await window.crypto.subtle.decrypt(
         this.RSA_ALGORITHM,
         privateKey,
         bufferToDecrypt
@@ -493,7 +506,7 @@ export class EncryptionService {
       const privateKeyJson = atob(privateKeyBase64);
       const privateKeyJwk = JSON.parse(privateKeyJson);
       
-      const privateKey = await crypto.subtle.importKey(
+      const privateKey = await window.crypto.subtle.importKey(
         'jwk',
         privateKeyJwk,
         {
@@ -511,7 +524,7 @@ export class EncryptionService {
       console.log('   Data size: ' + dataBytes.length + ' bytes');
 
       // Step 4: Sign with RSA-PSS
-      const signatureArrayBuffer = await crypto.subtle.sign(
+      const signatureArrayBuffer = await window.crypto.subtle.sign(
         {
           name: this.SIGN_ALGORITHM,
           saltLength: 32
@@ -547,7 +560,7 @@ export class EncryptionService {
       const publicKeyJson = atob(publicKeyBase64);
       const publicKeyJwk = JSON.parse(publicKeyJson);
       
-      const publicKey = await crypto.subtle.importKey(
+      const publicKey = await window.crypto.subtle.importKey(
         'jwk',
         publicKeyJwk,
         {

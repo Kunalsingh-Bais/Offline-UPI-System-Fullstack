@@ -1,13 +1,13 @@
 import { TestBed } from '@angular/core/testing';
 
-import { CapacitorBluetooth } from './capacitor-bluetooth';
+import { SyncWifi } from './sync-wifi';
 
-describe('CapacitorBluetooth', () => {
-  let service: CapacitorBluetooth;
+describe('SyncWIFI', () => {
+  let service: SyncWIFI;
 
   beforeEach(() => {
     TestBed.configureTestingModule({});
-    service = TestBed.inject(CapacitorBluetooth);
+    service = TestBed.inject(SyncWIFI);
   });
 
   it('should be created', () => {

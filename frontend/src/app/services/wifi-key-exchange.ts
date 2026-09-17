@@ -1,6 +1,12 @@
 import { Injectable } from '@angular/core';
-import { timestamp } from 'rxjs';
 
+// Type definition for RSA config
+type RsaHashedKeyGenParams = {
+  name: string;
+  modulusLength: number;
+  publicExponent: Uint8Array;
+  hash: { name: string };
+}
 export interface KeyPair {
   publicKey: CryptoKey;
   privateKey: CryptoKey;
@@ -19,7 +25,7 @@ export interface PeerKey {
 @Injectable({
   providedIn: 'root',
 })
-export class BluetoothKeyExchangeService {
+export class WifiKeyExchangeService {
    
   // Local device keys
   private localKeyPair: KeyPair | null = null;
@@ -31,11 +37,11 @@ export class BluetoothKeyExchangeService {
   private readonly KEY_EXPIRY_MS = 24 * 60 * 60 * 1000;
 
   // RSA configuration
-  private readonly RSA_CONFIG = {
+  private readonly RSA_CONFIG: RsaHashedKeyGenParams = {
     name: 'RSA-OAEP',
-    modulesLength: 4096,
+    modulusLength: 4096,
     publicExponent: new Uint8Array([1, 0, 1]),  // 65537
-    hash: 'SHA-256'
+    hash: { name: 'SHA-256'}
   };
 
   constructor() {

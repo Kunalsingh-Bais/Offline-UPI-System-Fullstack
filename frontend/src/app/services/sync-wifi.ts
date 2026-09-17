@@ -1,24 +1,11 @@
 import { HttpErrorResponse } from '@angular/common/http';
 import { Injectable } from '@angular/core';
-import { IndexedDbService } from './indexed-db';
+import { IndexedDbService, PendingTransaction } from './indexed-db';
 import { catchError, from, Observable, of, switchMap} from 'rxjs';
 import { ApiService } from './api';
 import { NetworkService } from './network';
 
-export interface PendingTransaction {
-  id?: number;
-  transactionId: string;
-  senderUpiId: string;
-  receiverUpiId: string;
-  amount: number;
-  description?: string;
-  encryptedData: string;
-  status: 'PENDING' | 'SYNCING' | 'FAILED' | 'SYNCED';
-  createdAt: string;
-  retryCount: number;
-}
-
-export interface BLESyncRequest {
+export interface WIFISyncRequest {
   transactionId: string;
   encryptedData: string;
 }
@@ -34,13 +21,13 @@ export interface SyncResult {
   providedIn: 'root',
 })
 
-export class SyncBleService {
+export class SyncWIFIService {
 
   constructor(private indexedDbService: IndexedDbService, private api: ApiService, private network: NetworkService) {}
 
-// ------ Main Method: Sync All Pendinig BLE Transactions ------  
-  syncAllPendingBLE(): Observable<SyncResult[]> {
-    console.log('Starting BLE sync...');
+// ------ Main Method: Sync All Pendinig WIFI Transactions ------  
+  syncAllPendingWIFI(): Observable<SyncResult[]> {
+    console.log('Starting WIFI sync...');
 
     return from(this.indexedDbService.getAllPendingTransactions()).pipe(
       switchMap((transactions: PendingTransaction[] | null) => {
@@ -57,37 +44,37 @@ export class SyncBleService {
           return of([])
         }
 
-        console.log(`Found ${pending.length} pending BLE transactions to sync`);
+        console.log(`Found ${pending.length} pending WIFI transactions to sync`);
 
         // Sync each one
-        const syncObservables = pending.map(txn => this.syncSingleBLE(txn));
+        const syncObservables = pending.map(txn => this.syncSingleWIFI(txn));
 
         // Use Promise.all to wait for all syncs
         return from(Promise.all(syncObservables));
       }),
       catchError(err => {
-        console.error('Error syncing BLE transactions: ', err);
+        console.error('Error syncing WIFI transactions: ', err);
         return of([] as SyncResult[]);
       }) 
     );
   }
 
-// ------ Method 2: Sync single BLE transaction ------  
-  syncSingleBLE(transaction: PendingTransaction): Promise<SyncResult> {
+// ------ Method 2: Sync single WIFI transaction ------  
+  syncSingleWIFI(transaction: PendingTransaction): Promise<SyncResult> {
     return new Promise((resolve) => {
       // Updated status to SYNCING in IndexedDB
       this.updateTransactionStatus(transaction.id, 'SYNCING');
 
-      const syncRequest: BLESyncRequest = {
+      const syncRequest: WIFISyncRequest = {
         transactionId: transaction.transactionId,
         encryptedData: transaction.encryptedData
       };
 
-      console.log(`Syncing BLE transaction: ${transaction.transactionId}`);
+      console.log(`Syncing WIFI transaction: ${transaction.transactionId}`);
 
-      this.network.post<any>(`${this.api.syncBLE}/sync-ble`, syncRequest).subscribe({
+      this.network.post<any>(`${this.api.syncWIFI}/sync-WIFI`, syncRequest).subscribe({
         next: (response) => {
-          console.log(`BLE transaction synced successfully: `, response);
+          console.log(`WIFI transaction synced successfully: `, response);
 
           // Update to SYNCED in IndexedDB
           this.updateTransactionStatus(transaction.id, 'SYNCED').then(() => {
@@ -101,7 +88,7 @@ export class SyncBleService {
         },
 
         error: (error: HttpErrorResponse) => {
-          console.error(`Failed to sync BLE transaction: ${transaction.transactionId}`, error);
+          console.error(`Failed to sync WIFI transaction: ${transaction.transactionId}`, error);
 
           // Increment retry count
           const newRetryCount = (transaction.retryCount || 0) + 1;
@@ -161,7 +148,7 @@ export class SyncBleService {
 
 // ------ Method 4: Sync with retry logic ------
   syncWithRetry(maxRetries = 3): Observable<SyncResult[]> {
-    console.log(`Starting BLE sync with retry (max ${maxRetries} attempts)...`);
+    console.log(`Starting WIFI sync with retry (max ${maxRetries} attempts)...`);
 
     return from(this.indexedDbService.getAllPendingTransactions()).pipe(
       switchMap((transactions: PendingTransaction[] | null) => {
@@ -177,7 +164,7 @@ export class SyncBleService {
 
         console.log(`Found ${pending.length} transactions to sync (including retries)`);
 
-        const syncObservables = pending.map(txn => this.syncSingleBLE(txn));
+        const syncObservables = pending.map(txn => this.syncSingleWIFI(txn));
         return from(Promise.all(syncObservables));
       }),
       catchError(err => {
@@ -204,7 +191,7 @@ export class SyncBleService {
 
 // ------ Method 6: Retry failed transactions ------  
   retryFailedTransactions(): Observable<SyncResult[]> {
-    console.log('Retrying failed BLE transactions...');
+    console.log('Retrying failed WIFI transactions...');
 
     return from(this.indexedDbService.getAllPendingTransactions()).pipe(
       switchMap((transactions: PendingTransaction[] | null) => {
@@ -221,7 +208,7 @@ export class SyncBleService {
 
         console.log(`Retrying ${failed.length} failed transactions`);
 
-        const retryObservables = failed.map(txn => this.syncSingleBLE(txn));
+        const retryObservables = failed.map(txn => this.syncSingleWIFI(txn));
         return from(Promise.all(retryObservables));
       }),
       catchError(err => {

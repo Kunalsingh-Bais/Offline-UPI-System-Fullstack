@@ -1,13 +1,13 @@
 import { TestBed } from '@angular/core/testing';
 
-import { SyncBle } from './sync-ble';
+import { WifiKeyExchange } from './wifi-key-exchange';
 
-describe('SyncBle', () => {
-  let service: SyncBle;
+describe('WifiKeyExchange', () => {
+  let service: WifiKeyExchange;
 
   beforeEach(() => {
     TestBed.configureTestingModule({});
-    service = TestBed.inject(SyncBle);
+    service = TestBed.inject(WifiKeyExchange);
   });
 
   it('should be created', () => {

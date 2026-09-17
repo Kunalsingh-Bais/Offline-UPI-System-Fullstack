@@ -44,6 +44,17 @@ interface GetBalanceResponse {
   message: string;
 }
 
+// Interface for user profile data stored locally
+interface UserProfile {
+  id?: number;
+  profileId?: number;
+  authUserId?: number;
+  name?: string;
+  email?: string;
+  upiId?: string;
+  phone?: string;
+}
+
 @Injectable({
   providedIn: 'root',
 })
@@ -135,34 +146,79 @@ export class UserService {
   }
 
 // ------ Helper Method 1: Save Profile to Localstorage ------
-  saveProfileToStorage(response: CreateProfileResponse): void {
-    try {
-      localStorage.setItem('profileId', response.profileId.toString());
-      localStorage.setItem('authUserId', response.authUserId.toString());
-      localStorage.setItem('userName', response.name);
-      localStorage.setItem('profileUpiId', response.upiId);
-
-      console.log('Profile saved to localStorage');
-      console.log('Profile ID: ', response.profileId);
-      console.log('User name: ', response.name);
-      console.log('Upi ID: ', response.upiId);
-    }
-    catch(error) {
-      console.error('Error saving to localStorage: ', error);
-    }
-  } 
+  saveProfileToStorage(profile: UserProfile): void {
   
-// ------ Helper Method 2: Get profile ID from Localstorage ------
-  getProfileIdFromStorage(): number | null {
-    try {
-      const profileId = localStorage.getItem('profileId');
-      if (!profileId || profileId === 'undefined' || profileId === 'null') {
-        return null;
-      }
-      return Number(profileId)
+  console.log('saveProfileToStorage() called with: ', profile);
+
+  try {
+    // Save entire profile as JSON
+    localStorage.setItem('userProfile', JSON.stringify(profile));
+    console.log('✅ Full profile saved to localStorage');
+
+    // Also save UPI ID separately for easy access
+    // The profile object should have upiId field
+    if (profile.upiId) {
+      localStorage.setItem('upiId', profile.upiId);
+      console.log('✅ UPI ID saved: ' + profile.upiId);
+    } else if (profile.email) {
+      // Fallback: use email as UPI if upiId not present
+      localStorage.setItem('upiId', profile.email);
+      console.log('✅ Email saved as UPI: ' + profile.email);
     }
-    catch (error) {
-      console.log('Error reading profileId from localStorage: ', error);
+
+    // Save profile ID
+    if (profile.id) {
+      localStorage.setItem('profileId', profile.id.toString());
+      console.log('✅ Profile ID saved: ' + profile.id);
+    }
+
+  } catch (error) {
+    console.error('❌ Error saving profile: ', error);
+  }
+}
+
+// Save UPI ID to localStorage
+  saveUpiIdToStorage(upiId: string): void {
+    if (upiId) {
+      localStorage.setItem('upiId', upiId);
+      console.log('✅ UPI ID saved to localStorage: ' + upiId);
+    }
+  }  
+  
+// ------ Helper Method 2: Get UPI ID from Localstorage ------
+  getUpiIdFromStorage(): string | null {
+  
+    try {
+      // First try to get the separate UPI key
+      let upiId = localStorage.getItem('upiId');
+    
+      if (upiId) {
+        console.log('✅ UPI found in localStorage: ' + upiId);
+        return upiId;
+      }
+
+      // Fallback: Get from full profile
+      const profileJson = localStorage.getItem('userProfile');
+      if (profileJson) {
+        try {
+          const profile = JSON.parse(profileJson);
+          upiId = profile.upiId || profile.email;
+        
+          if (upiId) {
+            console.log('✅ UPI found in profile: ' + upiId);
+            return upiId;
+          }
+        } 
+        catch (parseError) {
+        console.error('Error parsing profile JSON: ', parseError);
+        }
+      }
+
+      console.warn('⚠️ No UPI ID found in localStorage');
+      return null;
+
+    } catch (error) {
+      console.error('❌ Error retrieving UPI: ', error);
       return null;
     }
   }  
@@ -177,17 +233,17 @@ export class UserService {
       return null;
     }
   }
-
-// ------ Helper Method 4: Get UPI Id from Localstorage ------
-  getUpiIdFromStorage(): string | null {
+  
+// ------ Helper Method 4: Get profile ID from Localstorage ------
+  getProfileIdFromStorage(): number | null {
     try {
-      return localStorage.getItem('profileUpiId');
-    }
-    catch(error) {
-      console.log('Error reading profileUpiId from localStorage: ', error);
+      const profileId = localStorage.getItem('profileId');
+      return profileId ? Number(profileId) : null;
+    } catch (error) {
+      console.error('Error reading profileId from localStorage: ', error);
       return null;
     }
-  }  
+  }
 
 // ------ Helper Method 5: Clear all profile data ------
   clearProfileData(): void {

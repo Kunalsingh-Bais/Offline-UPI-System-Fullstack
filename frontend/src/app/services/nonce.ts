@@ -118,7 +118,7 @@ export class NonceService {
       return false;
     }
 
-    // Check length (32 or with prefix like "BLE_xxxx...")
+    // Check length (32 or with prefix like "WIFI_xxxx...")
     if (nonce.length < 32) {
       console.warn('❌ Nonce too short: ' + nonce.length);
       return false;
