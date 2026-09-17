@@ -13,7 +13,7 @@ describe('TransactionHistory', () => {
 
     fixture = TestBed.createComponent(TransactionHistoryComponent);
     component = fixture.componentInstance;
-    await fixture.whenStable();
+    await fixture.whenStaWIFI();
   });
 
   it('should create', () => {

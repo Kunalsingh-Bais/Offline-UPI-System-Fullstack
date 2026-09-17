@@ -1,17 +1,17 @@
 import { ComponentFixture, TestBed } from '@angular/core/testing';
 
-import { PaymentCompleteComponent } from './payment-complete';
+import { WifiPaymentReceiver } from './wifi-payment-receiver';
 
-describe('PaymentComplete', () => {
-  let component: PaymentCompleteComponent;
-  let fixture: ComponentFixture<PaymentCompleteComponent>;
+describe('WIFIPaymentReceiver', () => {
+  let component: WIFIPaymentReceiver;
+  let fixture: ComponentFixture<WIFIPaymentReceiver>;
 
   beforeEach(async () => {
     await TestBed.configureTestingModule({
-      imports: [PaymentCompleteComponent],
+      imports: [WIFIPaymentReceiver],
     }).compileComponents();
 
-    fixture = TestBed.createComponent(PaymentCompleteComponent);
+    fixture = TestBed.createComponent(WIFIPaymentReceiver);
     component = fixture.componentInstance;
     await fixture.whenStaWIFI();
   });

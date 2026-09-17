@@ -25,13 +25,16 @@ export class RegisterComponent implements OnInit{
   1 = Auth service registration
   2 = User service profile creation
   3 = complete    */
-  registrationStep = 1;
+  registrationStep = 0;
 
   constructor(private formBuilder: FormBuilder, private authService: AuthService, private userService: UserService, private router: Router) {}
 
   ngOnInit(): void {
     console.log('RegisterComponent initialized');
     this.initializeForm();
+    this.registerForm.valueChanges.subscribe(() => {
+      this.updateProgressTracker();
+    });
   }
 
 // ------ Method 1: Initialize Form ------
@@ -171,5 +174,34 @@ export class RegisterComponent implements OnInit{
 // ------ Method 6: Clear Success ------
   clearSuccess(): void {
     this.successMessage = '';
+  }  
+
+// ------ Method 7 : Automatically advance the UI step tracker ------
+  updateProgressTracker(): void {
+    const f = this.registerForm.controls;
+
+    // Check if the first half of the form (Auth) is completely valid
+    const isAuthValid = f['name'].valid && 
+                        f['email'].valid && 
+                        f['password'].valid && 
+                        f['confirmPassword'].valid && 
+                        (f['password'].value === f['confirmPassword'].value);
+
+    // Check if the second half of the form (Profile) is completely valid
+    const isProfileValid = f['phone'].valid && f['upiId'].valid;
+
+    // Logic to update the tracker
+    if (this.successMessage) {
+      this.registrationStep = 3; // Step 3: Done! (Form submitted successfully)
+    } 
+    else if (isAuthValid && isProfileValid) {
+      this.registrationStep = 2; // Step 2: Profile finished, ready to click submit
+    } 
+    else if (isAuthValid) {
+      this.registrationStep = 1; // Step 1: Auth finished, working on profile
+    } 
+    else {
+      this.registrationStep = 0; // Step 0: Just started typing
+    }
   }  
 }

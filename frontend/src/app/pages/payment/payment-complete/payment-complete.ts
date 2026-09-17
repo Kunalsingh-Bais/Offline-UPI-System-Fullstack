@@ -133,7 +133,7 @@ export class PaymentCompleteComponent implements OnInit{
   }
   
 // ------ Method 4: Confirm and Complete payment ------
-  completePayment(): void {
+  async completePayment(): Promise<void> {
     if(!this.paymentConfirmed) {
       this.errorMessage = 'Please confirm payment';
       return;
@@ -163,6 +163,9 @@ export class PaymentCompleteComponent implements OnInit{
     this.loading = true;
     this.errorMessage = '';
     this.currentStep = 4;
+    this.cdr.detectChanges();
+
+    await this.delay(2000)
 
     this.trasactionServie.completeTransaction({
       transactionId: this.transactionData.transactionId,
@@ -170,34 +173,25 @@ export class PaymentCompleteComponent implements OnInit{
     }).subscribe({
 
       // Success
-
       next: (response) => {
-
         if(response.success && response.status === 'SUCCESS') {
           console.log('Payment completed successfully');
           console.log('Sender balance: ', response.senderNewBalance);
           console.log('Receiver balance: ', response.receiverNewBalance);
 
           this.loading = false;
-          this.currentStep = 5;
+          this.currentStep = 5; // Triggers the celebration modal in HTML!
           this.successMessage = response.message;
 
           this.userService.triggerBalanceRefresh();
+          this.cdr.detectChanges();
 
-          // Redirect to dashboard after 3 seconds
-          setTimeout(() => {
-            // Clear sessionStorage
-            sessionStorage.removeItem('transactionData');
-
-            // Redirect
-            this.router.navigate(['/dashboard']);
-          }, 3000);
         }
         else{
           console.warn('Payment failed: ', response.message);
           this.loading = false;
           this.currentStep = 5;
-          this.errorMessage = response.message || 'Payment failed. Please try again.'
+          this.errorMessage = response.message || 'Payment failed. Please try again.';
 
           this.cdr.detectChanges();
         }
@@ -214,7 +208,7 @@ export class PaymentCompleteComponent implements OnInit{
         this.cdr.detectChanges();
       }
     });
-  }  
+  }
 
 // ------ Method 5: Toggle confirmation ------
   // Toggle payment confirmation checkbox
@@ -245,4 +239,16 @@ export class PaymentCompleteComponent implements OnInit{
     const date = new Date(dateString);
     return date.toLocaleString();
   }  
+
+// Navigate explicitly to dashboard when user clicks the button
+  goToDashboard(): void {
+    console.log('Navigating to dashboard...');
+    sessionStorage.removeItem('transactionData');
+    this.router.navigate(['/dashboard']);
+  }
+
+// Delay process  
+  private delay(ms: number): Promise<void> {
+    return new Promise(resolve => setTimeout(resolve, ms));
+  }
 }

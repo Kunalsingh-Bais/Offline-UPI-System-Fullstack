@@ -1,14 +1,14 @@
-import { ChangeDetectorRef, Component, OnInit } from '@angular/core';
+import { ChangeDetectorRef, Component, OnDestroy, OnInit } from '@angular/core';
 import { UserService } from '../../services/user';
 import { TransactionService } from '../../services/transaction';
 import { Router, RouterModule } from '@angular/router';
 import { CommonModule } from '@angular/common';
 import { IndexedDbService } from '../../services/indexed-db';
 
-// Combined transaction interface (UPI or BLE)
+// Combined transaction interface (UPI or WiFi)
 export interface CombinedTransaction {
   id: string;
-  type: 'UPI' | 'BLE';
+  type: 'UPI' | 'WiFi';
   fromUPI: string;
   toUPI: string;
   amount: number;
@@ -28,7 +28,7 @@ export interface CombinedTransaction {
   templateUrl: './dashboard.html',
   styleUrl: './dashboard.css',
 })
-export class DashboardComponent implements OnInit{
+export class DashboardComponent implements OnInit, OnDestroy{
 
   // Properties
   userName: string | null = null;
@@ -41,9 +41,12 @@ export class DashboardComponent implements OnInit{
   recentTransactions: CombinedTransaction[] = [];    // last 5 transactions
   errorMessage = '';
   upiTransactions: any[] = [];
-  bleTransactions: CombinedTransaction[] = [];
+  wifiTransactions: CombinedTransaction[] = [];
   isOnline = navigator.onLine;
   totalTransactions = 0;  
+
+  private onlineListener: any;
+  private offlineListener: any;
 
   constructor(private userService: UserService, private transactionService: TransactionService, private router: Router, private cdr: ChangeDetectorRef, private indexedDbService: IndexedDbService) {}
 
@@ -132,10 +135,10 @@ export class DashboardComponent implements OnInit{
     });
   }  
 
-// ------ Method 3: Load ALL transaction (UPI + BLE) ------
-  // shows last 3 transactions history
+// ------ Method 3: Load ALL transaction (UPI + WiFi) ------
+  // shows last 5 transactions history
   private async loadAllTransactions(): Promise<void> {
-    console.log('Loading all transactions (UPI + BLE)...');
+    console.log('Loading all transactions (UPI + WiFi)...');
 
     try {
       this.loadingTransactions = true;
@@ -143,8 +146,8 @@ export class DashboardComponent implements OnInit{
       // Load UPI transactions from backend
       await this.loadUPITransactions();
 
-      // Load BLE transactions from indexedDB
-      await this.loadBLETransactions();
+      // Load WiFi transactions from indexedDB
+      await this.loadWiFiTransactions();
 
       this.mergeTransactions();
 
@@ -153,6 +156,8 @@ export class DashboardComponent implements OnInit{
 
       // Total transactions
       this.totalTransactions = this.recentTransactions.length;
+      this.upiTransactions = this.recentTransactions.filter(t => t.type === 'UPI');
+      this.wifiTransactions = this.recentTransactions.filter(t => t.type === 'WiFi');
 
       // Show last 5 transactions
       this.recentTransactions = this.recentTransactions.slice(0,5);
@@ -185,39 +190,55 @@ export class DashboardComponent implements OnInit{
         }
 
         const profileId = Number(profileIdValue);
+        const currentUserUpi = (this.userUpiId || localStorage.getItem('upiId') || '').trim().toLowerCase();
 
         this.transactionService.getTransactionHistory(profileId).subscribe({
           next: (response) => {
             console.log('UPI transactions received: ', response?.length || 0);
 
             // Transform backend transactions to CombinedTransaction format
-            this.upiTransactions = (response || []).map((txn: any) => ({
-              id: txn.id?.toString() || 'UPI_' + Date.now(),
-              type: 'UPI' as const,
-              fromUPI: txn.senderUpiId || txn.from || 'unknown@upi',
-              toUPI: txn.receiverUpiId || txn.to || 'unknown@upi',
-              amount: txn.amount || 0,
-              description: txn.description || 'UPI Payment',
-              timestamp: new Date(txn.timestamp || txn.date).getTime(),
-              dateTime: new Date(txn.timestamp || txn.date).toLocaleString('en-IN'),
-              status: 'completed' as const,
-              synced: true,
-              source: 'backend' as const
-            }));
+            this.upiTransactions = (response || []).map((txn: any) => {
+              
+              const parsedSender = txn.senderUpiId || (txn.sender && txn.sender.upiId) || txn.from || 'unknown@upi';
+              const parsedReceiver = txn.receiverUpiId || (txn.receiver && txn.receiver.upiId) || txn.to || 'unknown@upi';
+              const txId = txn.transactionId || txn.id?.toString() || 'UPI_' + Date.now();
+              
+              // Detect WiFi transactions disguised as UPI
+              let txType = 'UPI';
+              const rawDesc = (txn.description || txn.notes || '').toLowerCase();
+              if (txn.type === 'WIFI' || txn.type === 'WiFi' || rawDesc.includes('wifi') || rawDesc.includes('offline')) {
+                txType = 'WiFi';
+              }
+              
+              const safeDate = txn.createdAt || txn.timestamp || txn.date || new Date().toISOString();
+              const isReceived = (parsedReceiver || '').trim().toLowerCase() === currentUserUpi;
+
+              return {
+                id: txId,
+                type: txType as 'UPI' | 'WiFi',
+                fromUPI: parsedSender,
+                toUPI: parsedReceiver,
+                amount: txn.amount || 0,
+                description: txn.description || txn.notes || (txType === 'WiFi' ? 'WiFi P2P Payment' : 'UPI Payment'),
+                timestamp: new Date(safeDate).getTime() || Date.now(),
+                dateTime: this.formatSafeDate(safeDate),
+                status: 'completed' as const,
+                synced: true,
+                source: 'backend' as const,
+                direction: isReceived ? 'received' : 'sent'
+              };
+            });
 
             resolve();
           }, 
           error: (error) => {
-            console.error('Enter fetching UPI transactions: ', error);
+            console.error('Error fetching UPI transactions: ', error);
             this.upiTransactions = [];
             resolve();
           }
         });
 
-        // Timeout after 5 seconds
-        setTimeout(() => {
-          resolve();
-        }, 5000);
+        setTimeout(() => resolve(), 5000);
       }
       catch (error) {
         console.error('Error in loadUPITransactions: ', error);
@@ -226,57 +247,107 @@ export class DashboardComponent implements OnInit{
     });
   }
 
-// ------ Method 5: Load BLE Transactions from IndexedDB ------
-  private async loadBLETransactions(): Promise<void> {
+// ------ Method 5: Load WiFi Transactions from IndexedDB ------
+  private async loadWiFiTransactions(): Promise<void> {
     try {
-      console.log('Fetching BLE transactions from IndexedDB...');
+      console.log('Fetching WiFi transactions from IndexedDB...');
 
-      const PendingTransactions = await this.indexedDbService.getAllPendingTransactions();
+      // 1. Fetch from the dedicated WiFi tables
+      let sentTxns: any[] = [];
+      let receivedTxns: any[] = [];
+      try { sentTxns = await (this.indexedDbService as any).getAllWIFISentPayments?.() || []; } catch(e) {}
+      try { receivedTxns = await (this.indexedDbService as any).getAllWIFIReceivedPayments?.() || []; } catch(e) {}
+      
+      let offlineTxns = [...sentTxns, ...receivedTxns];
 
-      console.log('Found in IndexedDB: ', PendingTransactions?.length || 0);
+      // 2. Fallback: Check the generic pending table
+      if (offlineTxns.length === 0) {
+        const pending = await this.indexedDbService.getAllPendingTransactions() || [];
+        offlineTxns = pending.filter(txn => 
+          (txn.type && txn.type.toUpperCase() === 'WIFI') || 
+          txn.transactionId?.toString().toUpperCase().includes('WIFI') ||
+          txn.transactionId?.toString().toUpperCase().includes('BLE')
+        );
+      }
 
-      // Transform IndexedDB format to CombinedTransaction format
-      this.bleTransactions = (PendingTransactions || []).filter(txn => txn.transactionId.startsWith('BLE')).map(txn => ({
-        id: txn.transactionId,
-        type: 'BLE' as const,
-        fromUPI: txn.senderUpiId,
-        toUPI: txn.receiverUpiId,
-        amount: txn.amount,
-        description: txn.description || 'BLE Payment',
-        timestamp: new Date(txn.createdAt).getTime(),
-        dateTime: new Date(txn.createdAt).toLocaleString('en-IN'),
-        status: txn.status === 'PENDING' ? 'pending' : 'completed',
-        synced: txn.status !== 'PENDING',
-        source: 'indexeddb' as const,
-        direction: txn.transactionId.includes('_RCV_') ? 'received' : 'sent'
-      }));
+      const currentUserUpi = localStorage.getItem('upiId')?.trim().toLowerCase();
 
-      console.log('BLE transactions loaded: ', this.bleTransactions.length);
+      offlineTxns = offlineTxns.filter(txn => {
+        const sender = (txn.senderUpiId || txn.senderUPI || '').toLowerCase;
+        const receiver = (txn.receiverUpiId || txn.receiverUPI || '').toLowerCase();
+
+        return sender === currentUserUpi || receiver === currentUserUpi;
+      });
+
+      // 3. Transform to CombinedTransaction format
+      this.wifiTransactions = offlineTxns.map(txn => {
+        const txnIdStr = txn.transactionId?.toString() || 'WIFI_' + Date.now();
+        // Determine direction by checking receiver ID against the logged-in user
+        const isReceived = txnIdStr.includes('_RCV_') || txn.receiverUpiId === localStorage.getItem('upiId')?.trim();
+
+        return {
+          id: txnIdStr,
+          type: 'WiFi' as const, 
+          fromUPI: txn.senderUpiId || txn.senderUPI,
+          toUPI: txn.receiverUpiId || txn.receiverUPI,
+          amount: Number(txn.amount),
+          description: txn.description || 'WiFi P2P Payment',
+          timestamp: new Date(txn.createdAt || txn.timestamp).getTime() || Date.now(),
+          dateTime: this.formatSafeDate(txn.createdAt || txn.timestamp),
+          status: ['RECEIVED', 'SENT', 'SYNCED', 'COMPLETED'].includes(txn.status?.toUpperCase()) ? 'completed' : 'pending',
+          synced: txn.status !== 'PENDING',
+          source: 'indexeddb' as const,
+          direction: isReceived ? 'received' : 'sent'
+        };
+      });
+
+      console.log('WiFi transactions loaded: ', this.wifiTransactions.length);
     }
     catch (error) {
-      console.error('Error loading BLE transactions: ', error);
-      this.bleTransactions = [];
+      console.error('Error loading WiFi transactions: ', error);
+      this.wifiTransactions = [];
     }
   }
    
-// ------ Method 6: Merge UPI + BLE Transactions ------
+// ------ Method 6: Merge UPI + WiFi Transactions ------
   private mergeTransactions(): void {
     console.log('Merging transactions...');
-    console.log('UPI: ', this.upiTransactions.length);
-    console.log('BLE: ', this.bleTransactions.length);
+    const merged: any[] = [];
 
-    const merged: CombinedTransaction[] = [];
-
-    // Add UPI transactions
+    // 1. Add Backend (UPI/Synced) transactions first.
     merged.push(...this.upiTransactions);
 
-    // Add BLE transactions
-    merged.push(...this.bleTransactions);
+    // 2. Add Local (IndexedDB) transactions
+    for (const wifiTxn of this.wifiTransactions) {
+      
+      // Find if this transaction already synced to the backend
+      let existingBackendTxn = merged.find(t => 
+        t.id === wifiTxn.id || 
+        (t.amount === wifiTxn.amount && t.direction === wifiTxn.direction && Math.abs(t.timestamp - wifiTxn.timestamp) < 5 * 60 * 1000)
+      );
+
+      // If it exists in both places, RESCUE THE CUSTOM NOTE!
+      if (existingBackendTxn) {
+        const hasLocalCustomNote = wifiTxn.description && wifiTxn.description.trim() !== '' && wifiTxn.description !== 'WiFi P2P Payment';
+
+        console.log(`🔍 Checking TXN ${wifiTxn.id} | Local Note: "${wifiTxn.description}" | Backend Note: "${existingBackendTxn.description}"`);
+
+        const backendLostNote = !existingBackendTxn.description || existingBackendTxn.description === 'WiFi P2P Payment' || existingBackendTxn.description.includes('settled');
+
+        if (hasLocalCustomNote && backendLostNote) {
+           console.log(`📝 Rescuing custom note for TXN: ${wifiTxn.description}`);
+           existingBackendTxn.description = wifiTxn.description; 
+        }
+      } 
+      // If it is completely new (offline only), add it normally
+      else {
+        merged.push(wifiTxn);
+      }
+    }
 
     this.recentTransactions = merged;
-
-    console.log('Merged total: ', merged.length);
-  }  
+    console.log('Merged total: ', this.recentTransactions.length);
+  }
 
 // ------ Method 7: Sort Transactions by Date ------
   private sortTransactions(): void {
@@ -290,17 +361,20 @@ export class DashboardComponent implements OnInit{
 // ------ Method 8: Setup Online Detection ------
   // Detect when device gets online/offline
   private setupOnlineDetection(): void {
-    window.addEventListener('online', () => {
+    this.onlineListener = () => {
       console.log('Connection restored');
       this.isOnline = true;
       this.cdr.detectChanges();
-    });
+    };
 
-    window.addEventListener('offline', () => {
+    this.offlineListener = () => {
       console.log('Connection lost');
       this.isOnline = false;
       this.cdr.detectChanges();
-    });
+    };
+
+    window.addEventListener('online', this.onlineListener);
+    window.addEventListener('offline', this.offlineListener);
   }
     
 // ------ Method 9: Navigate to send money ------
@@ -316,9 +390,9 @@ export class DashboardComponent implements OnInit{
   }  
 
 // ------ Method 11: Navigate to Bluetooth Payment ------
-  goToBluetoothPayment(): void {
+  goToWiFiPayment(): void {
     console.log('Navigating to Bluetooth Payment...');
-    this.router.navigate(['/ble-role-selection']);
+    this.router.navigate(['/wifi-role-selection']);
   }  
 
 // ------ Method 12: Format currency ------
@@ -354,13 +428,16 @@ export class DashboardComponent implements OnInit{
 // ------ Method 14: Get transaction icon ------
   // Get emoji icon based on transaction type
   getTransactionIcon(transaction: any): string {
-   if(transaction.receiverUpiId === this.userUpiId) {
-     return '👉';  // Money in
-   }
-   else {
-     return '👈';  // Money out
-   }
-  } 
+      const status = transaction.status?.toUpperCase();
+  
+      if (status === 'FAILED') return '❌';
+      if (status === 'PENDING') return '⏳';
+  
+      const isReceived = transaction.direction === 'received' || transaction.toUPI === this.userUpiId;
+  
+      // 👉 points in for Received, 👈 points out for Sent
+      return isReceived ? '👉' : '👈';
+  }
 
 // ------ Method 15: Get Transaction Label ------
   getTransactionLabel(transaction: CombinedTransaction): string {
@@ -371,11 +448,11 @@ export class DashboardComponent implements OnInit{
       return `${direction} ${name}`;
     }
     else {
-      // BLE
+      // WiFi
       const otherUPI = transaction.fromUPI === this.userUpiId ? transaction.toUPI : transaction.fromUPI;
       const direction = transaction.direction === 'sent' ? 'to' : 'from';
       const name = this.extractName(otherUPI);
-      return `BLE ${direction} ${name}`;
+      return `${direction} ${name}`;
     }
   }
   
@@ -401,5 +478,35 @@ export class DashboardComponent implements OnInit{
     console.log('Refreshing dashboard...');
     this.loadWalletBalance();
     await this.loadAllTransactions();
+  }
+
+  ngOnDestroy(): void {
+    if (this.onlineListener) {
+      window.removeEventListener('online', this.onlineListener);
+    }
+
+    if (this.offlineListener) {
+      window.removeEventListener('offline', this.offlineListener);
+    }
+  }
+
+// ------ Helper Method: Safe Data formatter  ------  
+  private formatSafeDate(dateVal: any): string {
+    if (!dateVal) return 'Recently';
+    try {
+      const d = new Date(dateVal);
+      // Check if it's an invalid date 
+      if (isNaN(d.getTime())) return 'Recently'; 
+      
+      // Format to a clean "12 Sep, 02:30 PM" format
+      return d.toLocaleString('en-IN', { 
+        day: 'numeric', 
+        month: 'short', 
+        hour: '2-digit', 
+        minute: '2-digit' 
+      });
+    } catch (e) {
+      return 'Recently';
+    }
   }
 }

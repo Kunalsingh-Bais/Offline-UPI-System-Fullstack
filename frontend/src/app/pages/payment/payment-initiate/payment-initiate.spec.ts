@@ -13,7 +13,7 @@ describe('PaymentInitiate', () => {
 
     fixture = TestBed.createComponent(PaymentInitiate);
     component = fixture.componentInstance;
-    await fixture.whenStable();
+    await fixture.whenStaWIFI();
   });
 
   it('should create', () => {

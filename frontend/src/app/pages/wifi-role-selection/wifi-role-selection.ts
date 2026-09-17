@@ -6,10 +6,10 @@ import { CommonModule } from '@angular/common';
   selector: 'app-role-selection',
   standalone: true,
   imports: [CommonModule],
-  templateUrl: './ble-role-selection.html',
-  styleUrl: './ble-role-selection.css',
+  templateUrl: './wifi-role-selection.html',
+  styleUrl: './wifi-role-selection.css',
 })
-export class BleRoleSelectionComponent {
+export class WiFiRoleSelectionComponent {
 
   isProcessing = false;
 
@@ -22,8 +22,8 @@ export class BleRoleSelectionComponent {
     this.isProcessing = true;
 
     setTimeout(() => {
-      console.log('Navigating to bluetooth-payment (sender)...');
-      this.router.navigate(['/bluetooth-payment'], {
+      console.log('Navigating to Wifi-payment (sender)...');
+      this.router.navigate(['/wifi-payment'], {
         queryParams: { role: 'sender' }
       });
     }, 300);
@@ -37,7 +37,7 @@ export class BleRoleSelectionComponent {
 
     setTimeout(() => {
       console.log('Navigating to receiver-mode (receiver)...');
-      this.router.navigate(['/ble-payment-receiver'], {
+      this.router.navigate(['/wifi-payment-receiver'], {
         queryParams: { role: 'receiver' }
       });
     }, 300);

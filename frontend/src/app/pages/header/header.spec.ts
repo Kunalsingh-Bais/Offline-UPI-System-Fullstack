@@ -13,7 +13,7 @@ describe('Header', () => {
 
     fixture = TestBed.createComponent(Header);
     component = fixture.componentInstance;
-    await fixture.whenStable();
+    await fixture.whenStaWIFI();
   });
 
   it('should create', () => {

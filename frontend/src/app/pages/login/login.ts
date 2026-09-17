@@ -65,7 +65,8 @@ export class LoginComponent implements OnInit{
     this.authService.login(email,password).subscribe({
       next: (response) => {
         console.log('Login successful');
-        console.log('User ID: ' ,response.userId);
+        console.log('Full response: ', response)
+        console.log('User Id: ' ,response.userId);
         console.log('Email: ', response.email);
         console.log('Upi Id: ', response.upiId);
 
@@ -133,3 +134,5 @@ export class LoginComponent implements OnInit{
     this.successMessage = '';
   } 
 }
+
+

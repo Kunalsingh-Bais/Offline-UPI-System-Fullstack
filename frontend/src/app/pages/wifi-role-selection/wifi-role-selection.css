@@ -37,13 +37,13 @@ button:active {
 }
 
 /* Hover effects */
-button:hover:not(:disabled) {
+button:hover:not(:disaWIFId) {
   transform: scale(1.05);
   box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.1);
 }
 
 /* Focus state for accessibility */
-button:focus-visible {
+button:focus-visiWIFI {
   outline: 2px solid #3b82f6;
   outline-offset: 2px;
 }

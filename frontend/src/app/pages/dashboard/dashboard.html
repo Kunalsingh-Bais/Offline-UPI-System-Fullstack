@@ -66,8 +66,8 @@
             <!-- Refresh button -->
             <button (click)="refreshDashboard()" [disabled]="loadingBalance"
                 ariel-label="Refresh dashboard" title="Refresh dashboard"
-                class="shrink-0 p-3 bg-blue-100 hover:bg-blue-200 text-blue-600 rounded-full transition disabled:opacity-50
-                disabled:cursor-not-allowed"> 
+                class="shrink-0 p-3 bg-blue-100 hover:bg-blue-200 text-blue-600 rounded-full transition disaWIFId:opacity-50
+                disaWIFId:cursor-not-allowed"> 
               
               @if (!loadingBalance) {
                 <svg class="w-6 h-6" fill="none"  
@@ -90,10 +90,10 @@
             'bg-green-50 text-green-700' : 'bg-orange-50 text-orange-700'" >
 
             @if (isOnline) {
-              <p>Online payments and Bluetooth payments are available.</p>
+              <p>Online payments and Wifi payments are available.</p>
             }
             @else {
-              <p> You are offline. Eligible transactions will be stored locally until the connection is restored. </p>
+              <p> You are offline. EligiWIFI transactions will be stored locally until the connection is restored. </p>
             }
           </div>
         </div>
@@ -113,14 +113,14 @@
               <p class="text-xs text-blue-100 mt-1">Transfer to UPI</p>
             </button>
 
-            <!-- Bluetooth Payment -->
-            <button (click)="goToBluetoothPayment()"  
+            <!-- Wifi Payment -->
+            <button (click)="goToWiFiPayment()"  
               class="bg-gradient-to-br from-cyan-600 to-cyan-700 hover:from-cyan-700 hover:to-cyan-800 text-white rounded-xl p-6 transition transform hover:scale-105 shadow-md">
               
-              <div class="text-3xl mb-2">🔵</div>
-              <p class="font-semibold">Bluetooth</p>
+              <div class="text-3xl mb-2">📶</div>
+              <p class="font-semibold">WiFi Pay</p>
               <p class="text-xs text-purple-100 mt-1">
-                Nearby P2P payment
+                Offline P2P payment
               </p>
             </button>
 
@@ -174,7 +174,7 @@
             <p class="font-semibold text-gray-700">No transactions yet</p>
             
             <p class="text-sm text-gray-500 mt-1">
-              Your UPI and Bluetooth payments will appear here.
+              Your UPI and Wifi payments will appear here.
             </p>
           </div>
 
@@ -206,11 +206,11 @@
                   <!-- Payment Type -->
                   <p class="text-xs text-gray-600 mt-1">
                     <span *ngIf="txn.type === 'UPI'">
-                      💳 UPI Payment
+                      💳 UPI
                     </span>
 
-                    <span *ngIf="txn.type === 'BLE'">
-                      🔵 Bluetooth P2P
+                    <span *ngIf="txn.type === 'WiFi'">
+                      📶 WiFi
                     </span>
 
                     <span *ngIf="!txn.type">
@@ -267,18 +267,19 @@
             </p>
           </div>
 
-          <!-- BLE Transactions -->
+          <!-- WiFi Transactions -->
           <div class="bg-purple-200 p-4 rounded-xl text-center border border-purple-400">
             <p class="text-xs font-semibold text-gray-600">
-              🔵 BLE
+              📶 WiFi
             </p>
             <p class="text-xl font-bold text-purple-600 mt-1">
-              {{ bleTransactions.length }}
+              {{ wifiTransactions.length }}
             </p>
           </div>
         </div> 
       </div>
     </div>
+    
       <!------ Right column: Profile card ------>
       <div>
         <!-- Profile card -->

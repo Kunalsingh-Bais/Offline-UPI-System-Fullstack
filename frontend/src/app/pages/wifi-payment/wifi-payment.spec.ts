@@ -1,17 +1,17 @@
 import { ComponentFixture, TestBed } from '@angular/core/testing';
 
-import { BluetoothPayment } from './bluetooth-payment';
+import { WifiPaymentComponent } from './wifi-payment';
 
-describe('BluetoothPayment', () => {
-  let component: BluetoothPayment;
-  let fixture: ComponentFixture<BluetoothPayment>;
+describe('WifiPayment', () => {
+  let component: WifiPaymentComponent;
+  let fixture: ComponentFixture<WifiPaymentComponent>;
 
   beforeEach(async () => {
     await TestBed.configureTestingModule({
-      imports: [BluetoothPayment],
+      imports: [WifiPaymentComponent],
     }).compileComponents();
 
-    fixture = TestBed.createComponent(BluetoothPayment);
+    fixture = TestBed.createComponent(WifiPaymentComponent);
     component = fixture.componentInstance;
     await fixture.whenStable();
   });

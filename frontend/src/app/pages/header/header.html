@@ -83,13 +83,8 @@
            History
         </button>
 
-        <button (click)="navigateTo('/pending-transactions')"
-           class="px-4 py-2 text-gray-700 hover:text-blue-600 transition font-medium">
-           Pending Transactions
-        </button>
-
         <!-- Logout button -->
-        <button (click)="onLogout()" class="px-4 py-2 bg-red-600'
+        <button (click)="promptLogout()" class="px-4 py-2 bg-red-600
           hover:bg-red-700 text-white rounded-lg transition font-medium">
           Logout
         </button>
@@ -106,6 +101,40 @@
       </button>
     </div>
   </div>  
+
+  <!------ Logout Confirmation Modal ------>
+  <div *ngIf="showLogoutModal" class="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm animate-fadeIn">
+    <div class="w-full max-w-sm overflow-hidden bg-white shadow-2xl rounded-3xl animate-slideUp">
+    
+      <div class="p-6 text-center sm:p-8">
+      
+        <!-- Icon -->
+        <div class="flex items-center justify-center w-16 h-16 mx-auto mb-4 text-3xl text-red-600 bg-red-50 rounded-2xl">
+          👋
+        </div>
+      
+        <!-- Text -->
+        <h2 class="mb-2 text-xl font-extrabold text-gray-900">Sign Out?</h2>
+        <p class="mb-8 text-sm font-medium text-gray-500">
+          Are you sure you want to log out of your UPI account? You will need to sign in again to make payments.
+        </p>
+      
+        <!-- Buttons -->
+        <div class="flex gap-3">
+          <button (click)="cancelLogout()" 
+            class="flex-1 py-3.5 text-sm font-bold text-gray-700 transition-colors bg-gray-100 hover:bg-gray-200 rounded-xl active:scale-95">
+            Cancel
+          </button>
+        
+          <button (click)="confirmLogout()" 
+            class="flex-1 py-3.5 text-sm font-bold text-white transition-all shadow-md bg-red-600 hover:bg-red-700 rounded-xl active:scale-95">
+            Yes, Log Out
+          </button>
+        </div>
+
+      </div>
+    </div>
+  </div>
 
   <!------ Mobile Menu (appears below header) ------>
   <div *ngIf="mobileMenuOpen" class="md:hidden bg-gray-50 border-t border-gray-200 py-2 px-4 space-y-2 animate-fadeIn">
@@ -138,8 +167,44 @@
     </button>
 
     <!-- Logout button (Mobile) -->
-    <button (click)="onLogout()" class="w-full text-left px-4 py-2 bg-red-600 hover:bg-red-700 text-white rounded transition font-medium">
+    <button (click)="promptLogout()" class="w-full text-left px-4 py-2 bg-red-600 hover:bg-red-700 text-white rounded transition font-medium">
       Logout
     </button>
   </div>
 </header>
+
+<!------ Logout Confirmation Modal ------>
+<div *ngIf="showLogoutModal" class="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm animate-fadeIn">
+  <div class="w-full max-w-sm overflow-hidden bg-white shadow-2xl rounded-3xl animate-slideUp">
+    
+    <div class="p-6 text-center sm:p-8">
+      
+      <!-- Text -->
+      <h2 class="mb-2 text-xl font-extrabold text-gray-900">Sign Out?</h2>
+      <p class="mb-8 text-sm font-medium text-gray-500">
+        Are you sure you want to log out of your UPI account? You will need to sign in again to make payments.
+      </p>
+      
+      <!-- Buttons -->
+      <div class="flex gap-3">
+        <button (click)="cancelLogout()" 
+          class="flex-1 py-3.5 text-sm font-bold text-gray-700 transition-colors bg-gray-100 hover:bg-gray-200 rounded-xl active:scale-95">
+          Cancel
+        </button>
+        
+        <button (click)="confirmLogout()" 
+          class="flex-1 py-3.5 text-sm font-bold text-white transition-all shadow-md bg-red-600 hover:bg-red-700 rounded-xl active:scale-95">
+          Yes, Log Out
+        </button>
+      </div>
+
+    </div>
+  </div>
+</div>
+
+<style>
+  .animate-fadeIn { animation: fadeIn 0.2s ease-out forwards; }
+  .animate-slideUp { animation: slideUp 0.3s cubic-bezier(0.16, 1, 0.3, 1) forwards; }
+  @keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
+  @keyframes slideUp { from { opacity: 0; transform: translateY(20px) scale(0.98); } to { opacity: 1; transform: translateY(0) scale(1); } }
+</style>

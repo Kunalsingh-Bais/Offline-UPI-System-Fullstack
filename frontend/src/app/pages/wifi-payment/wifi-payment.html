@@ -1,0 +1,245 @@
+<!------ Sender Payment Page ------>
+<div class="min-h-screen p-4 bg-gradient-to-br from-slate-50 to-slate-200 sm:p-8 font-sans">
+  <div class="max-w-md mx-auto relative h-[85vh] flex flex-col">
+    
+    <!-- Notification Toast -->
+    <div *ngIf="message" 
+      [ngClass]="{
+        'bg-emerald-50 text-emerald-800 border-emerald-200': messageType === 'success',
+        'bg-red-50 text-red-800 border-red-200': messageType === 'error',
+        'bg-blue-50 text-blue-800 border-blue-200': messageType === 'info'
+      }"
+      class="fixed top-4 left-1/2 transform -translate-x-1/2 border px-6 py-3 rounded-full shadow-lg z-50 text-sm font-semibold w-max max-w-[90%] text-center transition-all duration-300">
+      {{message}}    
+    </div>
+
+    <!------ 1. HOME PAGE ------>
+    <div *ngIf="page === 'home'" class="flex-1 mt-4 space-y-6 fade-in">
+      <div class="p-8 text-center bg-white border border-gray-100 shadow-xl rounded-3xl">
+        <div class="flex items-center justify-center w-16 h-16 mx-auto mb-4 bg-blue-100 rounded-2xl">
+          <span class="text-2xl">💸</span>
+        </div>
+        <h1 class="mb-2 text-2xl font-extrabold text-gray-900">Send Payment</h1>
+        <p class="mb-8 text-sm text-gray-500">Secure, encrypted offline transfers</p>
+
+        <!-- Action Buttons -->
+        <div class="space-y-4">
+          <button (click)="startSendPayment()" [disabled]="isProcessing"  
+            class="w-full flex items-center justify-center gap-2 bg-blue-600 hover:bg-blue-700 active:scale-[0.98] disaWIFId:bg-gray-300 text-white py-4 rounded-2xl font-bold shadow-md transition-all">
+            <span *ngIf="!isProcessing" class="text-lg">📡</span>
+            {{ isProcessing ? '⏳ Initializing...' : 'Connect via WiFi' }}
+          </button>  
+
+          <button (click)="goBack()" [disabled]="isProcessing" 
+            class="w-full py-4 font-bold text-gray-600 transition-all bg-gray-100 shadow-sm active:scale-[0.98] hover:bg-gray-200 rounded-2xl">
+            Go Back
+          </button>
+        </div>
+
+        <!-- Info Box -->
+        <div class="p-5 mt-8 text-left bg-slate-50 rounded-2xl">
+          <p class="mb-3 text-xs font-bold tracking-wider text-gray-400 uppercase">How it works</p>
+          <ul class="space-y-2 text-xs font-medium text-gray-600">
+            <li class="flex items-center gap-2"><span>1.</span> Scan receiver's QR code</li>
+            <li class="flex items-center gap-2"><span>2.</span> Enter payment amount</li>
+            <li class="flex items-center gap-2"><span>3.</span> Encrypted & transferred offline</li>
+          </ul>
+        </div>
+      </div>  
+    </div>
+
+    <!------ 2. QR SCANNER & PAYMENT PAGE ------>
+    <div *ngIf="page === 'input-ip'" class="flex-1 mt-4 space-y-4 fade-in">
+      
+      <!-- Top Bar -->
+      <div class="flex items-center justify-between mb-2">
+        <button (click)="goBack()" class="p-2 text-gray-400 transition-colors bg-white rounded-full shadow-sm hover:text-gray-800">
+          <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 19l-7-7 7-7"></path></svg>
+        </button>
+        <h2 class="text-lg font-bold text-gray-800">Transfer Details</h2>
+        <div class="w-10"></div> <!-- Spacer -->
+      </div>
+
+      <!-- CAMERA MODULE -->
+      <div *ngIf="!receiverDeviceIP" class="overflow-hidden bg-white border border-gray-100 shadow-xl rounded-3xl">
+        
+        <div *ngIf="!isScanning" class="p-8 text-center">
+          <div class="flex items-center justify-center w-16 h-16 mx-auto mb-4 bg-gray-100 rounded-full">
+            <span class="text-2xl">📷</span>
+          </div>
+          <h3 class="mb-2 font-bold text-gray-900 text-md">Scan to Connect</h3>
+          <p class="mb-6 text-sm text-gray-500">Point your camera at the receiver's screen</p>
+          
+          <button (click)="startQrScanning()" class="w-full py-4 font-bold text-white transition-all shadow-md bg-slate-900 hover:bg-slate-800 active:scale-[0.98] rounded-2xl">
+            Open Camera
+          </button>
+        </div>
+
+        <div [hidden]="!isScanning" class="relative bg-black h-[400px]">
+          <ngx-scanner-qrcode 
+            #myScanner="scanner" 
+            [config]="scannerConfig"
+            (event)="onCodeResult($event)"
+            class="object-cover w-full h-full opacity-90">
+          </ngx-scanner-qrcode>
+        </div>
+      </div>
+
+      <!-- PAYMENT FORM -->
+      <div *ngIf="receiverDeviceIP && !isScanning" class="p-6 bg-white border border-gray-100 shadow-xl rounded-3xl">
+        
+        <!-- Connection Chip -->
+        <div class="flex items-center justify-between p-4 mb-6 border border-emerald-100 bg-emerald-50 rounded-2xl">
+          <div class="flex items-center gap-3">
+            <div class="w-2 h-2 rounded-full bg-emerald-500 animate-pulse"></div>
+            <div>
+              <p class="text-xs font-semibold text-emerald-800">Connected Device</p>
+              <p class="font-mono text-sm font-bold text-emerald-600">{{ receiverDeviceIP }}</p>
+            </div>
+          </div>
+          <button (click)="receiverDeviceIP = ''; startQrScanning()" class="text-xs font-bold text-blue-600 transition hover:text-blue-800">
+            Rescan
+          </button>
+        </div>
+
+        <!-- Form Fields -->
+        <div class="space-y-5">
+          <div>
+            <label class="block mb-1 text-xs font-bold tracking-wide text-gray-500 uppercase">Amount (₹)</label>
+            <div class="relative">
+              <span class="absolute inset-y-0 left-0 flex items-center pl-4 text-xl font-bold text-gray-400">₹</span>
+              <input [(ngModel)]="amount" type="number" placeholder="0.00"
+                class="w-full py-4 pl-10 pr-4 text-2xl font-bold text-gray-900 transition-colors bg-gray-50 border-2 border-transparent rounded-2xl focus:bg-white focus:border-blue-500 focus:outline-none focus:ring-0" />
+            </div>
+          </div>
+
+          <div>
+            <label class="block mb-2 text-sm font-bold text-gray-700 uppercase">Note (Optional)</label>
+            <input type="text" name="description" [(ngModel)]="description" 
+            placeholder="What's this for?" class="w-full px-4 py-3 font-semibold text-gray-800 border border-gray-200 bg-gray-50 rounded-xl focus:ring-2 focus:ring-blue-500 focus:bg-white outline-none transition-all">
+          </div>
+        </div>
+
+        <button (click)="sendPayment()" [disabled]="!amount || isProcessing"
+          class="w-full py-4 mt-8 font-bold text-white transition-all bg-emerald-500 shadow-lg shadow-emerald-200 hover:bg-emerald-600 disabled:opacity-50 disaWIFId:shadow-none active:scale-[0.98] rounded-2xl text-lg flex justify-center items-center gap-2">
+          <span *ngIf="isProcessing" class="w-5 h-5 border-2 border-white border-t-transparent rounded-full animate-spin"></span>
+          {{ isProcessing ? 'Processing...' : 'Send Securely' }}
+        </button>
+      </div>
+    </div>
+
+    <!------ 3. SENDING PROGRESS PAGE ------>
+    <div *ngIf="page === 'sending'" class="flex-1 mt-10 fade-in">
+      <div class="p-8 bg-white border border-gray-100 shadow-xl rounded-3xl">
+        <div class="flex justify-center mb-6">
+          <div class="relative flex items-center justify-center w-20 h-20 bg-blue-50 rounded-full">
+            <span class="text-3xl z-10">🔐</span>
+            <div class="absolute inset-0 border-4 border-blue-200 rounded-full border-t-blue-600 animate-spin"></div>
+          </div>
+        </div>
+        
+        <h2 class="mb-6 text-xl font-bold text-center text-gray-900">Encrypting Transfer</h2>
+        
+        <div class="p-4 mb-6 text-sm font-medium text-center text-blue-800 bg-blue-50 rounded-2xl">
+          {{ encryptionProgress || 'Initializing protocols...' }}
+        </div>
+
+        <div class="space-y-3">
+          <!-- Simplified Progress Steps for UI cleaniness -->
+          <div class="flex items-center gap-3 p-3 bg-gray-50 rounded-xl" [class.opacity-50]="!isRequestingPublicKey && !isSigning && !isEncrypting">
+            <div class="flex items-center justify-center w-6 h-6 rounded-full" 
+                 [ngClass]="isRequestingPublicKey ? 'bg-blue-500' : 'bg-green-500'">
+              <span *ngIf="isRequestingPublicKey" class="w-2 h-2 bg-white rounded-full animate-ping"></span>
+              <svg *ngIf="!isRequestingPublicKey" class="w-4 h-4 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="3" d="M5 13l4 4L19 7"></path></svg>
+            </div>
+            <span class="text-sm font-semibold text-gray-700">RSA-4096 Key Exchange</span>
+          </div>
+
+          <div class="flex items-center gap-3 p-3 bg-gray-50 rounded-xl" [class.opacity-50]="!isSigning && !isEncrypting">
+             <div class="flex items-center justify-center w-6 h-6 rounded-full" 
+                 [ngClass]="isSigning ? 'bg-blue-500' : (isEncrypting || (!isRequestingPublicKey && !isSigning) ? 'bg-green-500' : 'bg-gray-300')">
+              <span *ngIf="isSigning" class="w-2 h-2 bg-white rounded-full animate-ping"></span>
+              <svg *ngIf="!isSigning && (isEncrypting || (!isRequestingPublicKey && !isSigning))" class="w-4 h-4 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="3" d="M5 13l4 4L19 7"></path></svg>
+            </div>
+            <span class="text-sm font-semibold text-gray-700">Digital Signature (RSA-PSS)</span>
+          </div>
+
+          <div class="flex items-center gap-3 p-3 bg-gray-50 rounded-xl" [class.opacity-50]="!isEncrypting && isProcessing">
+             <div class="flex items-center justify-center w-6 h-6 rounded-full" 
+                 [ngClass]="isEncrypting ? 'bg-blue-500' : (!isRequestingPublicKey && !isSigning && !isEncrypting ? 'bg-green-500' : 'bg-gray-300')">
+              <span *ngIf="isEncrypting" class="w-2 h-2 bg-white rounded-full animate-ping"></span>
+              <svg *ngIf="!isRequestingPublicKey && !isSigning && !isEncrypting" class="w-4 h-4 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="3" d="M5 13l4 4L19 7"></path></svg>
+            </div>
+            <span class="text-sm font-semibold text-gray-700">Payload Encryption</span>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!------ 4. SUCCESS PAGE ------>
+    <div *ngIf="page === 'success'" class="flex-1 mt-10 fade-in">
+      <div class="p-8 text-center bg-white border border-gray-100 shadow-xl rounded-3xl">
+        <div class="flex items-center justify-center w-24 h-24 mx-auto mb-6 bg-emerald-100 rounded-full">
+          <span class="text-5xl">✨</span>
+        </div>
+        
+        <h2 class="mb-1 text-2xl font-extrabold text-emerald-600">Payment Sent</h2>
+        <p class="mb-8 text-sm text-gray-500">Stored safely on receiver's device</p>
+
+        <div class="p-6 mb-8 bg-slate-50 rounded-2xl border border-slate-100">
+          <div class="mb-4 text-4xl font-black text-slate-900">₹{{ amount }}</div>
+          <div class="flex justify-between pb-3 mb-3 text-sm border-b border-slate-200">
+            <span class="text-gray-500">To</span>
+            <span class="font-semibold text-gray-900">{{ receiverUPI }}</span>
+          </div>
+          <div class="flex justify-between text-sm">
+            <span class="text-gray-500">Status</span>
+            <span class="font-bold text-emerald-600">Offline Sync Pending</span>
+          </div>
+        </div>
+
+        <button (click)="page = 'home'; receiverUPI = ''; amount = 0"
+          class="w-full py-4 font-bold text-white transition-all shadow-md bg-slate-900 hover:bg-slate-800 active:scale-[0.98] rounded-2xl">
+          Done
+        </button>
+      </div>
+    </div> 
+    
+    <!------ 5. FAILED PAGE ------>
+    <div *ngIf="page === 'failed'" class="flex-1 mt-10 fade-in">
+      <div class="p-8 text-center bg-white border border-gray-100 shadow-xl rounded-3xl">
+        <div class="flex items-center justify-center w-20 h-20 mx-auto mb-6 bg-red-50 rounded-full">
+          <span class="text-4xl">⚠️</span>
+        </div>
+        
+        <h2 class="mb-4 text-2xl font-bold text-red-600">Transfer Failed</h2>
+        
+        <div class="p-4 mb-6 text-sm text-left text-red-800 bg-red-50 rounded-xl border border-red-100">
+          <span class="font-bold block mb-1">Error Details:</span>
+          {{ message }}
+        </div>
+
+        <div class="space-y-3">
+          <button (click)="page = 'input-ip'; receiverDeviceIP = ''" 
+            class="w-full py-4 font-bold text-white transition-all bg-red-500 shadow-md hover:bg-red-600 active:scale-[0.98] rounded-2xl">
+            Try Again
+          </button>
+          <button (click)="page = 'home'" class="w-full py-4 font-bold text-gray-600 transition-all bg-gray-100 hover:bg-gray-200 active:scale-[0.98] rounded-2xl">
+            Back to Home
+          </button>
+        </div>
+      </div>
+    </div>
+
+  </div>  
+</div>
+
+
+<style>
+  .fade-in { animation: fadeIn 0.3s ease-in-out; }
+  @keyframes fadeIn { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
+  
+  /* Hides standard number input arrows */
+  input[type="number"]::-webkit-inner-spin-button, 
+  input[type="number"]::-webkit-outer-spin-button { -webkit-appearance: none; margin: 0; }
+</style>

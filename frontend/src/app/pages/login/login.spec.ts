@@ -13,7 +13,7 @@ describe('Login', () => {
 
     fixture = TestBed.createComponent(LoginComponent);
     component = fixture.componentInstance;
-    await fixture.whenStable();
+    await fixture.whenStaWIFI();
   });
 
   it('should create', () => {

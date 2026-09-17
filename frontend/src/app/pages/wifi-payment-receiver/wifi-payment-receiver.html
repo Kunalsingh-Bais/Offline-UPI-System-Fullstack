@@ -1,0 +1,327 @@
+<!------ Receiver Dashboard Page ------>
+<div class="min-h-screen p-4 bg-gradient-to-br from-slate-50 to-slate-200 sm:p-8 font-sans">
+  <!-- Main container -->
+  <div class="max-w-5xl mx-auto relative fade-in">
+
+    <!------ Floating Notifications ------>
+    <div *ngIf="errorMessage" class="fixed top-4 left-1/2 transform -translate-x-1/2 bg-red-50 text-red-800 border border-red-200 px-6 py-3 rounded-full shadow-lg z-50 text-sm font-semibold w-max max-w-[90%] text-center transition-all duration-300">
+      {{ errorMessage }}
+    </div>
+    
+    <div *ngIf="successMessage" class="fixed top-4 left-1/2 transform -translate-x-1/2 bg-emerald-50 text-emerald-800 border border-emerald-200 px-6 py-3 rounded-full shadow-lg z-50 text-sm font-semibold w-max max-w-[90%] text-center transition-all duration-300">
+      {{ successMessage }}
+    </div>
+
+    <!------ Header Section ------>
+    <div class="mb-8">
+      <div class="flex flex-wrap items-center justify-between gap-4 mb-6">
+        <!-- Back button -->
+        <button (click)="goBackToDashboard()"
+          class="flex items-center gap-2 px-4 py-2 text-sm font-bold text-gray-500 transition-colors bg-white border border-gray-200 shadow-sm rounded-xl hover:text-gray-800 hover:bg-gray-50 active:scale-[0.98]">
+          <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 19l-7-7 7-7"></path>
+          </svg>
+          Back
+        </button>
+
+        <!-- Badges -->
+        <div class="flex flex-wrap items-center gap-3">
+          <!-- Status badge -->
+          <div [ngClass]="isListening ? 'bg-emerald-50 border-emerald-200' : 'bg-gray-100 border-gray-200'"
+            class="inline-flex items-center rounded-full border px-4 py-1.5 text-xs font-bold tracking-wide shadow-sm">
+            <span [ngClass]="isListening ? 'text-emerald-700' : 'text-gray-600'">
+              {{ getReceiverStatusText() }}
+            </span>
+          </div>
+
+          <!-- Network Status Badge -->
+          <div class="inline-flex items-center gap-2 bg-white px-4 py-1.5 rounded-full shadow-sm border"
+            [ngClass]="isOnline ? 'border-emerald-200' : 'border-red-200'">
+            <div class="relative flex w-2.5 h-2.5">
+              <span *ngIf="isOnline" class="absolute inline-flex w-full h-full rounded-full opacity-75 animate-ping bg-emerald-400"></span>
+              <span class="relative inline-flex w-2.5 h-2.5 rounded-full" 
+                    [ngClass]="isOnline ? 'bg-emerald-500' : 'bg-red-500'"></span>
+            </div>
+            <span class="text-xs font-bold tracking-wider uppercase" 
+                  [ngClass]="isOnline ? 'text-emerald-700' : 'text-red-600'">
+                  {{ isOnline ? 'Online' : 'Offline' }}
+            </span>
+          </div>
+        </div>
+      </div>
+
+      <!-- Title -->
+      <h1 class="mb-2 text-3xl font-extrabold text-gray-900 sm:text-4xl">
+        Receive via WiFi
+      </h1>
+      <p class="text-gray-500 text-md">
+        Keep this dashboard open to accept secure offline payments.
+      </p>
+    </div>
+
+    <!------ Main Grid ------>
+    <div class="grid grid-cols-1 gap-6 lg:grid-cols-3 lg:gap-8">
+
+      <!-- Left Column: Receiver Control & Payments -->
+      <div class="space-y-6 lg:col-span-2">
+
+        <!-- 1. Receiver Control Card -->
+        <div class="p-6 bg-white border border-gray-100 shadow-xl rounded-3xl sm:p-8">
+          <div class="flex items-center justify-between mb-6">
+            <h2 class="text-xl font-bold text-gray-900">
+              {{ isListening ? '📡 Connection Active' : '🔇 Connection Paused'}}
+            </h2>
+            <button (click)="refreshPayments()" [disabled]="isLoading"
+              class="p-2 text-gray-400 transition-colors bg-gray-50 rounded-xl hover:text-blue-600 hover:bg-blue-50 active:scale-95 disabled:opacity-50" title="Refresh">
+              <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"></path></svg>
+            </button>
+          </div>
+
+          <!-- Network Info Grid -->
+          <div class="grid grid-cols-1 gap-4 mb-8 sm:grid-cols-2">
+            <!-- UPI Info -->
+            <div class="p-5 border border-blue-100 bg-blue-50 rounded-2xl">
+              <p class="mb-1 text-xs font-bold tracking-wide text-blue-400 uppercase">My UPI</p>
+              <p class="text-lg font-bold text-blue-700 truncate">{{ receiverUPI || 'Not set' }}</p>
+            </div>
+
+            <!-- IP Info -->
+            <div class="p-5 border border-purple-100 bg-purple-50 rounded-2xl">
+              <p class="mb-1 text-xs font-bold tracking-wide text-purple-400 uppercase">IP Address</p>
+              <p class="font-mono text-lg font-bold text-purple-700">{{ getLocalIP() || 'Finding...'}}</p>
+            </div>
+          </div>
+
+          <!-- Action Buttons -->
+          <div class="flex flex-col gap-4 sm:flex-row">
+            <button *ngIf="!isListening" (click)="startReceiving()" [disabled]="isLoading"
+              class="flex-1 bg-slate-900 hover:bg-slate-800 active:scale-[0.98] disabled:opacity-50 disabled:cursor-not-allowed text-white font-bold py-4 rounded-2xl shadow-md transition-all flex items-center justify-center gap-2">
+              @if (!isLoading) {
+                <span class="text-emerald-400">▶</span> Start Listening
+              }
+              @if (isLoading) {
+                <span class="w-5 h-5 border-2 border-white rounded-full border-t-transparent animate-spin"></span> Starting...
+              }
+            </button>
+
+            <button *ngIf="isListening" (click)="stopReceiving()" [disabled]="isLoading"
+              class="flex-1 bg-red-500 hover:bg-red-600 active:scale-[0.98] disabled:opacity-50 disabled:cursor-not-allowed text-white font-bold py-4 rounded-2xl shadow-md transition-all flex items-center justify-center gap-2">
+              @if (!isLoading) {
+                <span>⏹</span> Stop Listening
+              }
+              @if (isLoading) {
+                <span class="w-5 h-5 border-2 border-white rounded-full border-t-transparent animate-spin"></span> Stopping...
+              }
+            </button>
+          </div>
+        </div>
+
+        <!-- 2. QR Code Hub -->
+        <div *ngIf="isListening" class="p-6 text-center bg-white border border-gray-100 shadow-xl fade-in rounded-3xl sm:p-8">
+          <div class="flex justify-center mb-4">
+            <div class="flex items-center justify-center w-12 h-12 bg-gray-100 rounded-full">
+              <span class="text-xl">📱</span>
+            </div>
+          </div>
+          <h2 class="mb-2 text-lg font-bold text-gray-900">Pair Sender Device</h2>
+          <p class="max-w-sm mx-auto mb-6 text-sm text-gray-500">Have the sender scan this code with their app to instantly establish a secure offline tunnel.</p>
+
+          <div *ngIf="receiverIpUrl; else loadingQr" class="flex flex-col items-center justify-center max-w-xs p-5 mx-auto border-2 border-gray-200 border-dashed bg-gray-50 rounded-2xl">
+            <div class="p-3 bg-white rounded-xl shadow-sm border border-gray-100">
+              <qrcode 
+                *ngIf="receiverIpUrl"
+                [qrdata]="receiverIpUrl" 
+                [width]="220" 
+                [errorCorrectionLevel]="'M'"
+                [margin]="2"
+                colorDark="#000000"
+                colorLight="#ffffff">
+              </qrcode>
+            </div>
+          </div>
+
+          <ng-template #loadingQr>
+            <div class="flex flex-col items-center justify-center max-w-xs p-10 mx-auto border-2 border-gray-200 border-dashed bg-gray-50 rounded-2xl">
+               <div class="w-8 h-8 mb-4 border-4 rounded-full border-blue-200 border-t-blue-600 animate-spin"></div>
+               <p class="text-sm font-medium text-gray-400">Generating secure code...</p>
+            </div>
+          </ng-template>
+        </div>
+
+        <!-- 3. Statistics & Payments Module -->
+        <div class="p-6 bg-white border border-gray-100 shadow-xl rounded-3xl sm:p-8">
+          
+          <!-- Mini Stats Row -->
+          <div class="grid grid-cols-3 gap-3 mb-8">
+            <div class="p-4 text-center border bg-slate-50 border-slate-100 rounded-2xl">
+              <p class="mb-1 text-xs font-bold text-gray-400 uppercase">Received</p>
+              <p class="text-xl font-black text-slate-800">{{ paymentStats.totalReceived || 0}}</p>
+            </div>
+            <div class="p-4 text-center border bg-emerald-50 border-emerald-100 rounded-2xl">
+              <p class="mb-1 text-xs font-bold text-emerald-600/70 uppercase">Total Amount (₹)</p>
+              <p class="text-xl font-black text-emerald-600">{{ formatCurrency(paymentStats.totalAmount || 0) }}</p>
+            </div>
+            <div class="p-4 text-center border bg-amber-50 border-amber-100 rounded-2xl">
+              <p class="mb-1 text-xs font-bold text-amber-600/70 uppercase">Pending</p>
+              <p class="text-xl font-black text-amber-600">{{ paymentStats.pendingSync || 0}}</p>
+            </div>
+          </div>
+
+          <h3 class="mb-4 text-lg font-bold text-gray-900">Transaction History</h3>
+
+          <!-- Modern Pill Tabs -->
+          <div class="flex p-1 mb-6 bg-gray-100 rounded-xl">
+            <button (click)="paymentTab = 'received'" class="flex-1 py-2.5 text-sm font-bold transition-all rounded-lg"
+              [ngClass]="paymentTab === 'received' ? 'bg-white text-gray-900 shadow-sm' : 'text-gray-500 hover:text-gray-700'">
+              Received
+              <span *ngIf="receivedPayments && receivedPayments.length > 0" class="ml-1.5 px-2 py-0.5 text-[10px] rounded-full bg-gray-100 text-gray-600">
+                {{ receivedPayments.length }}
+              </span>
+            </button>
+            <button (click)="paymentTab = 'pending'" class="flex-1 py-2.5 text-sm font-bold transition-all rounded-lg"
+              [ngClass]="paymentTab === 'pending' ? 'bg-white text-gray-900 shadow-sm' : 'text-gray-500 hover:text-gray-700'">
+              Pending Sync
+              <span *ngIf="pendingPayments && pendingPayments.length > 0" class="ml-1.5 px-2 py-0.5 text-[10px] rounded-full bg-amber-100 text-amber-700">
+                {{ pendingPayments.length }}
+              </span>
+            </button>
+          </div>
+
+          <!-- Loading State -->
+          <div *ngIf="loadingPayments" class="py-12 text-center">
+            <div class="w-8 h-8 mx-auto mb-4 border-4 rounded-full border-blue-100 border-t-blue-600 animate-spin"></div>
+            <p class="text-sm font-medium text-gray-400">Loading records...</p>
+          </div>
+
+          <!-- RECEIVED PAYMENTS LIST -->
+          <div *ngIf="paymentTab === 'received'">
+            <div *ngIf="!loadingPayments && receivedPayments.length === 0" class="py-12 text-center bg-gray-50 rounded-2xl">
+              <span class="block mb-2 text-3xl">📭</span>
+              <p class="font-bold text-gray-600">No received payments</p>
+            </div>
+
+            <div *ngIf="!loadingPayments && receivedPayments.length > 0" class="space-y-3">
+              <div *ngFor="let payment of receivedPayments"
+                class="flex items-center justify-between p-4 transition-colors border border-gray-100 bg-gray-50 rounded-2xl hover:bg-white hover:shadow-sm hover:border-gray-200">
+                <div class="flex items-center gap-4">
+                  <div class="flex items-center justify-center w-10 h-10 rounded-full bg-emerald-100 text-emerald-600">
+                    <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 14l-7 7m0 0l-7-7m7 7V3"></path></svg>
+                  </div>
+                  <div>
+                    <p class="font-bold text-gray-900">{{ extractName(payment.senderUpiId || payment.senderUPI) }}</p>
+                    <p class="text-xs font-medium text-gray-500">{{ payment.senderUpiId || payment.senderUPI }}</p>
+                    <p class="text-[10px] text-gray-400 mt-1">{{ payment.dateTime || (payment.createdAt | date:'short') }}</p>
+                  </div>
+                </div>
+                <div class="text-right">
+                  <p class="text-lg font-black text-emerald-600">+ {{formatCurrency(payment.amount)}}</p>
+                  <span [ngClass]="getStatusBadgeClass(payment.status)" class="inline-block px-2.5 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-wider mt-1 border">
+                    {{ payment.statusLabel || payment.status }}
+                  </span>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <!-- PENDING PAYMENTS LIST -->
+          <div *ngIf="paymentTab === 'pending'">
+            <div *ngIf="!loadingPayments && pendingPayments.length === 0" class="py-12 text-center bg-gray-50 rounded-2xl">
+              <span class="block mb-2 text-3xl">✨</span>
+              <p class="font-bold text-gray-600">All caught up!</p>
+              <p class="text-xs text-gray-400 mt-1">No pending payments to sync.</p>
+            </div>
+
+            <div *ngIf="!loadingPayments && pendingPayments.length > 0" class="space-y-3 mb-6">
+              <div *ngFor="let payment of pendingPayments"
+                class="flex items-center justify-between p-4 border border-amber-200 bg-amber-50 rounded-2xl">
+                <div class="flex items-center gap-4">
+                  <div class="flex items-center justify-center w-10 h-10 rounded-full bg-amber-100 text-amber-600">
+                    <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg>
+                  </div>
+                  <div>
+                    <p class="font-bold text-gray-900">{{ payment.senderUpiId || payment.senderUPI || 'Unknown Sender' }}</p>
+                    <p class="text-[10px] font-medium text-gray-500 mt-1">Received: {{ payment.receivedAt | date: 'short' }}</p>
+                  </div>
+                </div>
+                <div class="text-right">
+                  <p class="text-lg font-black text-gray-900">₹{{ payment.amount }}</p>
+                  <span class="inline-block px-2.5 py-0.5 bg-amber-100 border border-amber-200 text-amber-800 text-[10px] font-bold uppercase rounded-full mt-1">
+                    {{ payment.status || 'PENDING' }}
+                  </span>
+                </div>
+              </div>
+            </div>
+
+            <!-- Sync Button -->
+            <button *ngIf="!loadingPayments && pendingPayments.length > 0" 
+              (click)="syncPendingPayments()" [disabled]="isSyncing"
+              class="w-full bg-blue-600 text-white py-4 rounded-2xl font-bold shadow-md hover:bg-blue-700 active:scale-[0.98] disabled:opacity-50 transition-all flex items-center justify-center gap-2">
+              @if (isSyncing) {
+                <span class="w-5 h-5 border-2 border-white rounded-full border-t-transparent animate-spin"></span> Syncing...
+              } @else {
+                <span>📤</span> Sync to Cloud
+              }
+            </button>
+          </div>
+        </div>
+      </div>
+
+      <!-- Right Column: Info card -->
+      <div>
+        <div class="sticky p-6 bg-white border border-gray-100 shadow-xl rounded-3xl sm:p-8 top-8">
+          <h3 class="mb-6 text-lg font-bold text-gray-900">How it works</h3>
+
+          <div class="space-y-6 text-sm text-gray-600">
+            <div class="flex gap-4">
+              <div class="flex items-center justify-center w-8 h-8 font-bold text-blue-700 bg-blue-100 rounded-full shrink-0">1</div>
+              <div>
+                <p class="font-bold text-gray-900">Start Listening</p>
+                <p class="mt-1 text-xs text-gray-500">Tap the button to open a secure offline tunnel.</p>
+              </div>
+            </div>
+
+            <div class="flex gap-4">
+              <div class="flex items-center justify-center w-8 h-8 font-bold text-blue-700 bg-blue-100 rounded-full shrink-0">2</div>
+              <div>
+                <p class="font-bold text-gray-900">Sender Connects</p>
+                <p class="mt-1 text-xs text-gray-500">Sender scans your QR code to instantly pair devices.</p>
+              </div>
+            </div>
+
+            <div class="flex gap-4">
+              <div class="flex items-center justify-center w-8 h-8 font-bold text-blue-700 bg-blue-100 rounded-full shrink-0">3</div>
+              <div>
+                <p class="font-bold text-gray-900">Encrypted Transfer</p>
+                <p class="mt-1 text-xs text-gray-500">Payment logic executes offline and stores safely on your device.</p>
+              </div>
+            </div>
+
+            <div class="flex gap-4">
+              <div class="flex items-center justify-center w-8 h-8 font-bold text-blue-700 bg-blue-100 rounded-full shrink-0">4</div>
+              <div>
+                <p class="font-bold text-gray-900">Cloud Sync</p>
+                <p class="mt-1 text-xs text-gray-500">The moment you get internet access, data syncs to the bank backend.</p>
+              </div>
+            </div>
+          </div>
+
+          <!-- Important Notice -->
+          <div class="p-5 mt-8 border border-blue-100 bg-blue-50 rounded-2xl">
+            <p class="mb-3 text-xs font-bold tracking-wide text-blue-800 uppercase">System Requirements</p>
+            <ul class="space-y-2 text-xs font-medium text-blue-700">
+              <li class="flex gap-2"><span>•</span> Keep this page active</li>
+              <li class="flex gap-2"><span>•</span> Wi-Fi Hotspot must be ON</li>
+              <li class="flex gap-2"><span>•</span> Both devices on same network</li>
+            </ul>
+          </div>
+        </div>
+      </div>
+      
+    </div>
+  </div>
+</div>
+
+<style>
+  .fade-in { animation: fadeIn 0.4s ease-out forwards; }
+  @keyframes fadeIn { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
+</style>

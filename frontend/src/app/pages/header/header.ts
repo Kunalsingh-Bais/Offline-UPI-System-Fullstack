@@ -19,6 +19,7 @@ export class HeaderComponent implements OnInit{
   walletBalance: number | null = null;
   mobileMenuOpen = false;           // Mobile menu toggle
   loadingBalance = false;
+  showLogoutModal = false;
 
   constructor(private authService: AuthService, private userService: UserService, private router: Router , private cdr: ChangeDetectorRef) {}
 
@@ -114,6 +115,10 @@ export class HeaderComponent implements OnInit{
     // Clear profile data from user service
     this.userService.clearProfileData();
 
+    localStorage.removeItem('upiId');
+    localStorage.removeItem('profileId');
+    localStorage.removeItem('token');
+
     alert('Logged out successfully');
 
     // Redirect to login
@@ -137,5 +142,24 @@ export class HeaderComponent implements OnInit{
       minimumFractionDigits: 2,
       maximumFractionDigits: 2
     });
+  }
+
+// ------ Confirm Logout ------  
+  promptLogout(): void {
+    this.showLogoutModal = true;
+  }
+
+  cancelLogout(): void {
+    this.showLogoutModal = false;
+  }
+
+  confirmLogout(): void {
+    this.showLogoutModal = false;
+
+    localStorage.removeItem('upiId');
+    localStorage.removeItem('profileId');
+    localStorage.removeItem('token');
+
+    this.router.navigate(['/login'])
   }
 }

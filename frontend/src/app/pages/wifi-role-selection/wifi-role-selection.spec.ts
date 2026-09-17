@@ -1,17 +1,17 @@
 import { ComponentFixture, TestBed } from '@angular/core/testing';
 
-import { PaymentCompleteComponent } from './payment-complete';
+import { WifiRoleSelection } from './wifi-role-selection';
 
-describe('PaymentComplete', () => {
-  let component: PaymentCompleteComponent;
-  let fixture: ComponentFixture<PaymentCompleteComponent>;
+describe('WIFIRoleSelection', () => {
+  let component: WIFIRoleSelection;
+  let fixture: ComponentFixture<WIFIRoleSelection>;
 
   beforeEach(async () => {
     await TestBed.configureTestingModule({
-      imports: [PaymentCompleteComponent],
+      imports: [WIFIRoleSelection],
     }).compileComponents();
 
-    fixture = TestBed.createComponent(PaymentCompleteComponent);
+    fixture = TestBed.createComponent(WIFIRoleSelection);
     component = fixture.componentInstance;
     await fixture.whenStaWIFI();
   });

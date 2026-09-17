@@ -7,10 +7,9 @@ import { PaymentInitiateComponent } from './pages/payment/payment-initiate/payme
 import { PaymentCompleteComponent } from './pages/payment/payment-complete/payment-complete';
 import { TransactionHistoryComponent } from './pages/transaction-history/transaction-history';
 import { authGuard } from './guards/auth-guard';
-import { PendingTransactionsComponent } from './pages/pending-transactions/pending-transactions';
-import { BluetoothPaymentComponent } from './pages/bluetooth-payment/bluetooth-payment';
-import { BlePaymentReceiverComponent } from './pages/ble-payment-receiver/ble-payment-receiver';
-import { BleRoleSelectionComponent } from './pages/ble-role-selection/ble-role-selection';
+import { WifiPaymentComponent } from './pages/wifi-payment/wifi-payment';
+import { WiFiPaymentReceiverComponent } from './pages/wifi-payment-receiver/wifi-payment-receiver';
+import { WiFiRoleSelectionComponent } from './pages/wifi-role-selection/wifi-role-selection';
 
 export const routes: Routes = [
   
@@ -58,26 +57,20 @@ export const routes: Routes = [
     },
 
     {
-        path: 'pending-transactions',
-        component: PendingTransactionsComponent,
+        path: 'wifi-role-selection',
+        component: WiFiRoleSelectionComponent,
         canActivate: [authGuard]
     },
 
     {
-        path: 'ble-role-selection',
-        component: BleRoleSelectionComponent,
+        path: 'wifi-payment',
+        component: WifiPaymentComponent,
         canActivate: [authGuard]
     },
 
     {
-        path: 'bluetooth-payment',
-        component: BluetoothPaymentComponent,
-        canActivate: [authGuard]
-    },
-
-    {
-        path: 'ble-payment-receiver',
-        component: BlePaymentReceiverComponent,
+        path: 'wifi-payment-receiver',
+        component: WiFiPaymentReceiverComponent,
         canActivate: [authGuard]
     },
 

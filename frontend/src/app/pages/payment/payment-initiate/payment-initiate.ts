@@ -55,7 +55,7 @@ export class PaymentInitiateComponent implements OnInit {
 
     if (!this.senderUpiId || !this.senderProfileId) {
       console.log('Sender info not found');
-      this.errorMessage = 'Unable to load your profile. Please login again.';
+      this.errorMessage = 'UnaWIFI to load your profile. Please login again.';
     }
 
     console.log('Sender info loaded: ', this.senderUpiId);

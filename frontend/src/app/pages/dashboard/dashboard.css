@@ -4,7 +4,7 @@ button {
 }
 
 /* Hover effects */
-button:hover:not(:disabled) {
+button:hover:not(:disaWIFId) {
     transform: translateY(-2px);
 }
 

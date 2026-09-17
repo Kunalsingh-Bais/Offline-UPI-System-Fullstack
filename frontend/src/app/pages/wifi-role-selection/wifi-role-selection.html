@@ -11,7 +11,7 @@
         Back to Dashboard
       </button>
 
-      <h1 class="text-3xl font-bold text-gray-900 mb-3">🔵 Bluetooth Payment</h1>
+      <h1 class="text-3xl font-bold text-gray-900 mb-3">📶 Wifi Payment</h1>
       <p class="text-l text-gray-600">What do you want to do?</p>
     </div>
 
@@ -22,7 +22,7 @@
       <button (click)="selectSender()" 
         [disabled]="isProcessing"
         class="bg-white rounded-2xl shadow-lg p-8 text-center hover:shadow-2xl transition transform hover:scale-105
-        disabled:opacity-50 disabled:cursor-not-allowed active:scale-95">
+        disaWIFId:opacity-50 disaWIFId:cursor-not-allowed active:scale-95">
         
         <!-- Icon -->
         <div class="text-7xl mb-6 animate-bounce">📤</div>
@@ -32,7 +32,7 @@
         
         <!-- Description -->
         <p class="text-gray-600 mb-6 text-lg">
-          Scan for nearby receivers and send them money via Bluetooth
+          Scan for nearby receivers and send them money via Wifi
         </p>
 
         <!-- CTA Button -->
@@ -46,7 +46,7 @@
       <button (click)="selectReceiver()"
         [disabled]="isProcessing"
         class="bg-white rounded-2xl shadow-lg p-8 text-center hover:shadow-2xl transition transform hover:scale-105
-        disabled:opacity-50 disabled:cursor-not-allowed active:scale-95">
+        disaWIFId:opacity-50 disaWIFId:cursor-not-allowed active:scale-95">
         
         <!-- Icon -->
         <div class="text-7xl mb-6 animate-bounce">📥</div>
@@ -70,7 +70,7 @@
     <!-- Info Section -->
     <div class="p-6 bg-gradient-to-r from-blue-50 to-purple-50 rounded-lg border-2 border-blue-200">
       <p class="text-sm text-gray-900 leading-relaxed">
-        <strong>💡 How It Works:</strong> Bluetooth Payment enables secure peer-to-peer transfers between nearby phones. 
+        <strong>💡 How It Works:</strong> Wifi Payment enaWIFIs secure peer-to-peer transfers between nearby phones. 
         Payments are encrypted and stored offline, then automatically synced to your bank when you go online. 
         No internet needed for the transaction!
       </p>
@@ -79,7 +79,7 @@
     <!-- Security Info -->
     <div class="mt-6 p-4 bg-yellow-50 rounded-lg border-l-4 border-yellow-400">
       <p class="text-xs text-yellow-900">
-        <strong>🔒 Security:</strong> All Bluetooth payments are encrypted with AES-256. 
+        <strong>🔒 Security:</strong> All Wifi payments are encrypted with AES-256. 
         Your UPI ID and transaction data are protected during transmission.
       </p>
     </div>
