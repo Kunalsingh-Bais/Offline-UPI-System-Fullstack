@@ -21,6 +21,10 @@
     "@capacitor/android": "^8.4.2",
     "@capacitor/cli": "^8.4.2",
     "@capacitor/core": "^8.4.2",
+    "@zxing/browser": "^0.2.1",
+    "@zxing/library": "^0.23.0",
+    "angularx-qrcode": "^21.0.5",
+    "ngx-scanner-qrcode": "1.8.1",
     "rxjs": "~7.8.0",
     "tslib": "^2.3.0"
   },
