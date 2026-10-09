@@ -6,7 +6,7 @@ import { Injectable } from '@angular/core';
 export class ApiService {
 
   // Base api url for all other service 
-  private readonly BASE_URL = 'http://localhost:8080';
+  private readonly BASE_URL = 'https://maker-location-amenities-ultra.trycloudflare.com';
 
   constructor() {}
 
