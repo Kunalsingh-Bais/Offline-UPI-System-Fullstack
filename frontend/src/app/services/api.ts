@@ -6,7 +6,7 @@ import { Injectable } from '@angular/core';
 export class ApiService {
 
   // Base api url for all other service 
-  private readonly BASE_URL = 'https://athletes-interpreted-earned-thu.trycloudflare.com';
+  private readonly BASE_URL = 'https://builds-specially-pvc-periods.trycloudflare.com';
 
   constructor() {}
 
