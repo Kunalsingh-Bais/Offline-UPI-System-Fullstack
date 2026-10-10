@@ -9,7 +9,7 @@ export class ApiService {
   private readonly BASE_URL = 'https://builds-specially-pvc-periods.trycloudflare.com';
 
   constructor() {}
-
+  
   // authService
   get auth() {
     return `${this.BASE_URL}/api/auth`;
