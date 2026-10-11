@@ -24,7 +24,7 @@ export class WifiRelayService {
 
   // ===== HARDCODED URLS (NO environment needed) =====
   private readonly API_GATEWAY = 'https://settled-labor-promotion-telecom.trycloudflare.com';
-  public readonly RELAY_SERVER = 'https://suited-recruiting-boundaries-aerospace.trycloudflare.com  ';
+  public readonly RELAY_SERVER = 'https://suited-recruiting-boundaries-aerospace.trycloudflare.com';
   private readonly RELAY_PORT = 5000;
 
   private publicKeyCache = new Map<string, any>();
