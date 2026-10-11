@@ -23,8 +23,8 @@ export interface RelayPayload {
 export class WifiRelayService {
 
   // ===== HARDCODED URLS (NO environment needed) =====
-  private readonly API_GATEWAY = 'https://builds-specially-pvc-periods.trycloudflare.com';
-  private readonly RELAY_SERVER = 'http://127.0.0.1:5000';
+  private readonly API_GATEWAY = 'https://settled-labor-promotion-telecom.trycloudflare.com';
+  public readonly RELAY_SERVER = 'https://suited-recruiting-boundaries-aerospace.trycloudflare.com  ';
   private readonly RELAY_PORT = 5000;
 
   private publicKeyCache = new Map<string, any>();
